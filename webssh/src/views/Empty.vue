@@ -5,7 +5,7 @@
       <div class="title-section">
         <h1 class="title">
           <div class="uptime-value" style="font-size: 20px">
-            运行中 {{ formatUptime(deviceInfo.device_uptime) }}
+            运行中 {{ formatUptime(deviceInfo.device_uptime as any) }}
           </div>
         </h1>
         <div class="status-indicator">
@@ -15,7 +15,7 @@
       </div>
 
       <div class="controls">
-        <div style="display: flex;gap:10px">
+        <div style="display: flex; gap: 10px">
           <div style="display: flex; position: relative">
             <div class="signal-bars">
               <div
@@ -25,7 +25,7 @@
             </div>
             <span
               style="position: absolute; font-size: 12px; top: -7px; left: -1px"
-              >{{ networkType }}</span
+              >{{ networkType }}{{ is5GA ? 'A' : '' }}</span
             >
           </div>
 
@@ -85,7 +85,7 @@
     <div v-else-if="error" class="error">
       <div class="error-icon">⚠️</div>
       <h3>加载失败</h3>
-      <p style="margin: 10px 0;">{{ error }}</p>
+      <p style="margin: 10px 0">{{ error }}</p>
       <button class="btn btn-danger" @click="refresh">重试</button>
     </div>
 
@@ -94,7 +94,9 @@
       <!-- 操作卡片 -->
       <div class="card device-actions-card">
         <div class="card-header">
-          <h3>🖥️ 设备操作</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="ActionsIcon" alt="" />设备操作
+          </h3>
         </div>
         <div class="card-content">
           <div class="device-stats">
@@ -149,7 +151,9 @@
       <!-- 设备信息卡片 -->
       <div class="card device-info-card">
         <div class="card-header">
-          <h3>🖥️ 设备信息</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="DashboardIcon" alt="" />设备信息
+          </h3>
         </div>
         <div class="card-content">
           <div class="device-stats">
@@ -163,14 +167,7 @@
                   <div
                     class="temp-fill"
                     :style="{
-                      width:
-                        Math.min(
-                          100,
-                          Math.max(
-                            0,
-                            (((cpuTemp.cpuss_temp || 0) - 30) / 50) * 100
-                          )
-                        ) + '%',
+                      width: cpuTemp.cpuss_temp + '%',
                     }"></div>
                 </div>
               </div>
@@ -186,21 +183,13 @@
               </div>
               <div class="temp-info">
                 <div class="temp-value">
-                  {{ formatCpuTemp(deviceInfo.bat_temperature) }}
+                  {{ formatCpuTemp(deviceInfo.bat_temperature as any) }}
                 </div>
                 <div class="temp-bar">
                   <div
                     class="temp-fill"
                     :style="{
-                      width:
-                        Math.min(
-                          100,
-                          Math.max(
-                            0,
-                            (((deviceInfo.bat_temperature || 0) - 30) / 50) *
-                              100
-                          )
-                        ) + '%',
+                      width: deviceInfo.bat_temperature + '%',
                     }"></div>
                 </div>
               </div>
@@ -212,13 +201,13 @@
                 <div class="memory-details">
                   <span class="memory-used">{{
                     formatMemory(
-                      (deviceInfo.meminfo?.total || 0) -
-                        (deviceInfo.meminfo?.free || 0)
+                      ((deviceInfo.meminfo?.total || 0) as any) -
+                        ((deviceInfo.meminfo?.free as any) || 0)
                     )
                   }}</span>
                   <span class="memory-separator">/</span>
                   <span class="memory-total">{{
-                    formatMemory(deviceInfo.meminfo?.total || 0)
+                    formatMemory((deviceInfo.meminfo?.total as any) || 0)
                   }}</span>
                 </div>
                 <div class="memory-bar">
@@ -227,17 +216,17 @@
                     :style="{
                       width:
                         formatMemoryPercent(
-                          (deviceInfo.meminfo?.total || 0) -
-                            (deviceInfo.meminfo?.free || 0),
-                          deviceInfo.meminfo?.total || 1
+                          (deviceInfo.meminfo?.total as any || 0) -
+                            (deviceInfo.meminfo?.free as any || 0),
+                          deviceInfo.meminfo?.total as any || 1
                         ) + '%',
                     }"></div>
                   <span class="memory-text"
                     >{{
                       formatMemoryPercent(
-                        (deviceInfo.meminfo?.total || 0) -
-                          (deviceInfo.meminfo?.free || 0),
-                        deviceInfo.meminfo?.total || 1
+                        ((deviceInfo.meminfo?.total as any) || 0) -
+                          ((deviceInfo.meminfo?.free as any) || 0),
+                        (deviceInfo.meminfo?.total as any) || 1
                       )
                     }}%</span
                   >
@@ -248,14 +237,19 @@
             <div class="device-item">
               <div class="device-label">
                 CPU 负载
-                {{ (100 - deviceInfo.cpuinfo?.[0]?.idle || 0).toFixed(2) }} %
+                {{
+                  (100 - (deviceInfo.cpuinfo?.[0]?.idle as any) || 0).toFixed(2)
+                }}
+                %
               </div>
               <div class="device-values">
                 <div class="load-item">
                   <span class="load-label">核心1</span>
                   <span class="load-value"
                     >{{
-                      (100 - deviceInfo.cpuinfo?.[1]?.idle || 0).toFixed(0)
+                      (
+                        100 - (deviceInfo.cpuinfo?.[1]?.idle as any) || 0
+                      ).toFixed(0)
                     }}
                     %</span
                   >
@@ -264,7 +258,9 @@
                   <span class="load-label">核心2</span>
                   <span class="load-value"
                     >{{
-                      (100 - deviceInfo.cpuinfo?.[2]?.idle || 0).toFixed(0)
+                      (
+                        100 - (deviceInfo.cpuinfo?.[2]?.idle as any) || 0
+                      ).toFixed(0)
                     }}
                     %</span
                   >
@@ -273,7 +269,9 @@
                   <span class="load-label">核心3</span>
                   <span class="load-value"
                     >{{
-                      (100 - deviceInfo.cpuinfo?.[3]?.idle || 0).toFixed(0)
+                      (
+                        100 - (deviceInfo.cpuinfo?.[3]?.idle as any) || 0
+                      ).toFixed(0)
                     }}
                     %</span
                   >
@@ -282,7 +280,9 @@
                   <span class="load-label">核心4</span>
                   <span class="load-value"
                     >{{
-                      (100 - deviceInfo.cpuinfo?.[4]?.idle || 0).toFixed(0)
+                      (
+                        100 - (deviceInfo.cpuinfo?.[4]?.idle as any) || 0
+                      ).toFixed(0)
                     }}
                     %</span
                   >
@@ -295,7 +295,9 @@
       <!-- 网络信息卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>📡 网络信息</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="InternetIcon" alt="" />网络信息
+          </h3>
         </div>
         <div class="card-content">
           <div class="info-grid">
@@ -307,11 +309,11 @@
             </div>
             <div class="info-item">
               <span class="label">网络类型</span>
-              <span class="value tag">{{ d.network_type || '-' }}</span>
+              <span class="value">{{ d.network_type || '-' }}</span>
             </div>
             <div class="info-item">
               <span class="label">驻网状态</span>
-              <span class="value tag success">{{ d.simcard_roam || '-' }}</span>
+              <span class="value">{{ d.simcard_roam || '-' }}</span>
             </div>
             <div class="info-item">
               <span class="label">选择模式</span>
@@ -345,10 +347,11 @@
       <!-- NR 5G信号卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>🚀 NR 5G 信号</h3>
-          <span v-if="networkType!='5G'" class="tag warning"
-            >未激活</span
-          >
+          <h3 class="hd">
+            <img style="width: 24px" :src="NetworkIcon" alt="" />NR 5G 信号
+          </h3>
+          <span v-if="networkType != '5G'" class="tag warning">未激活</span>
+          <span v-else class="tag success">已激活</span>
         </div>
         <div class="card-content">
           <div class="signal-grid">
@@ -403,10 +406,11 @@
       <!-- LTE信号卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>📶 LTE 信号</h3>
-          <span v-if="networkType!='4G'" class="tag warning"
-            >未激活</span
-          >
+          <h3 class="hd">
+            <img style="width: 24px" :src="NetworkIcon" alt="" />LTE 信号
+          </h3>
+          <span v-if="networkType != '4G'" class="tag warning">未激活</span>
+          <span v-else class="tag success">已激活</span>
         </div>
         <div class="card-content">
           <div class="signal-grid">
@@ -454,7 +458,6 @@
               <span class="label">Cell ID</span>
               <span class="value">{{ d.cell_id ?? '-' }}</span>
             </div>
-            
           </div>
         </div>
       </div>
@@ -462,7 +465,9 @@
       <!-- 流量统计卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>📊 流量统计</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="ChartIcon" alt="" />流量统计
+          </h3>
         </div>
         <div class="card-content">
           <div class="traffic-stats">
@@ -498,13 +503,13 @@
             <div class="traffic-item">
               <div class="traffic-label">总上传</div>
               <div class="traffic-value">
-                {{ formatBytes(trafficData.total_tx_bytes) }}
+                {{ formatBytes(trafficData.total_tx_bytes as any) }}
               </div>
             </div>
             <div class="traffic-item">
               <div class="traffic-label">总下载</div>
               <div class="traffic-value">
-                {{ formatBytes(trafficData.total_rx_bytes) }}
+                {{ formatBytes(trafficData.total_rx_bytes as any) }}
               </div>
             </div>
             <div class="traffic-item">
@@ -526,24 +531,34 @@
       <!-- 频段与锁定卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>🔧 频段与锁定</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="LockIcon" alt="" />频段与锁定
+          </h3>
         </div>
         <div class="card-content">
           <div class="info-grid">
             <div class="info-item">
-              <span class="label">当前激活</span>
-              <span class="value">{{ d.wan_active_band || '-' }}</span>
+              <span class="label">主载波</span>
+              <span class="value">{{
+                d.wan_active_band?.toUpperCase() || '-'
+              }}</span>
             </div>
             <div class="info-item">
-              <span class="label">NR 工作频段</span>
-              <span class="value">{{ d.nr5g_action_band || '-' }}</span>
+              <span class="label">工作频段</span>
+              <span class="value"
+                >{{
+                  d.wan_active_band?.toUpperCase()
+                    ? d.wan_active_band.toUpperCase() + ', '
+                    : ''
+                }}{{ currentActiveBands || '-' }}</span
+              >
             </div>
             <div class="info-item">
-              <span class="label">NR 频道</span>
+              <span class="label">频道</span>
               <span class="value">{{ d.nr5g_action_channel ?? '-' }}</span>
             </div>
             <div class="info-item">
-              <span class="label">NR 带宽</span>
+              <span class="label">带宽</span>
               <span class="value">{{
                 d.nr5g_bandwidth ? d.nr5g_bandwidth + ' MHz' : '-'
               }}</span>
@@ -575,7 +590,9 @@
       <!-- 网络接口状态卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>🌐 网络接口状态</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="InterfaceIcon" alt="" />网络接口状态
+          </h3>
         </div>
         <div class="card-content">
           <div class="interface-grid">
@@ -661,7 +678,9 @@
       <!-- 标识信息卡片 -->
       <div class="card">
         <div class="card-header">
-          <h3>🏷️ 标识信息</h3>
+          <h3 class="hd">
+            <img style="width: 24px" :src="TagIcon" alt="" />标识信息
+          </h3>
         </div>
         <div class="card-content">
           <div class="info-grid">
@@ -708,6 +727,15 @@
 </template>
 
 <script setup lang="ts">
+import InternetIcon from '@/assets/svgs/internet.svg';
+import ActionsIcon from '@/assets/svgs/actions.svg';
+import NetworkIcon from '@/assets/svgs/network.svg';
+import ChartIcon from '@/assets/svgs/chart.svg';
+import TagIcon from '@/assets/svgs/tag.svg';
+import LockIcon from '@/assets/svgs/lock.svg';
+import InterfaceIcon from '@/assets/svgs/interface.svg';
+import DashboardIcon from '@/assets/svgs/dashboard.svg';
+
 import { ElMessage, ElNotification } from 'element-plus';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
@@ -740,6 +768,8 @@ interface TrafficData {
   real_rx_bytes: number;
   real_max_tx_speed: number;
   real_max_rx_speed: number;
+  total_tx_bytes: number;
+  total_rx_bytes: number;
   day_tx_bytes: number;
   day_rx_bytes: number;
   month_tx_bytes: number;
@@ -867,9 +897,9 @@ interface LanUserList {
 const loading = ref(false);
 const error = ref<string | null>(null);
 const data = ref<NetInfoResult | null>(null);
-const lanData = ref<NetworkInterface>({});
-const wanData = ref<NetworkInterface>({});
-const wan6Data = ref<NetworkInterface>({});
+const lanData = ref<NetworkInterface>({} as NetworkInterface);
+const wanData = ref<NetworkInterface>({} as NetworkInterface);
+const wan6Data = ref<NetworkInterface>({} as NetworkInterface);
 const trafficData = ref<TrafficData>({} as TrafficData);
 const deviceInfo = ref<DeviceInfo>({} as DeviceInfo);
 const cpuTemp = ref<CpuTemp>({} as CpuTemp);
@@ -891,6 +921,32 @@ const networkType = computed(() => {
   if (val?.includes('HSPA')) return 'H+';
   if (val?.includes('3G')) return '3G';
   return '';
+});
+const currentActiveBands = computed(() => {
+  const val = networkType.value != '5G' ? data.value?.lteca : data.value?.nrca;
+  if (!val) return null;
+  const list = (val as string).split(';').filter((el) => el);
+  if (list.length == 0) return null;
+  if (networkType.value != '5G' && list.length == 1) return null;
+
+  const res = list
+    .map((item) =>
+      networkType.value != '5G'
+        ? item[1]
+          ? item.split(',')[1]
+          : ''
+        : item[3]
+        ? 'N' + item.split(',')[3]
+        : ''
+    )
+    .join(', ')
+    .replace(/,/g, ',');
+  return res;
+});
+
+const is5GA = computed(() => {
+  if (!currentActiveBands.value) return false;
+  return currentActiveBands.value.split(',').length >= 2;
 });
 
 // 自动刷新控制
@@ -1014,11 +1070,11 @@ function formatUptime(seconds?: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  return `${hours}h ${minutes}m ${secs}s`;
+  return `${hours}:${minutes}:${secs}`;
 }
 
 function formatSpeed(bytesPerSecond: number): string {
-  if (!bytesPerSecond) return '-';
+  if (!bytesPerSecond) return '0 B/s';
   const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
   let size = bytesPerSecond;
   let unitIndex = 0;
@@ -1297,7 +1353,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(20px);
   border-radius: 16px;
   padding: 20px 24px;
@@ -1550,7 +1605,6 @@ onUnmounted(() => {
 
 /* 卡片样式 */
 .card {
-  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(20px);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -1564,6 +1618,14 @@ onUnmounted(() => {
 .card:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.hd {
+  display: flex;
+  gap: 10px;
+}
+.hd img {
+  width: 24px;
 }
 
 .card-header {
@@ -1659,7 +1721,12 @@ onUnmounted(() => {
 
 .memory-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4a5568 0%, #68d391 70%, #63b3ed 100%);
+  background: linear-gradient(
+    90deg,
+    #62718abb 0%,
+    #68d391bb 70%,
+    #63b3edbb 100%
+  );
   border-radius: 10px;
   transition: width 0.3s ease;
 }
@@ -1685,7 +1752,6 @@ onUnmounted(() => {
 
 .memory-used {
   font-weight: 600;
-  color: #fc8181;
 }
 
 .memory-separator {
@@ -1718,7 +1784,12 @@ onUnmounted(() => {
 
 .temp-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4a5568 0%, #68d391 60%, #63b3ed 100%);
+  background: linear-gradient(
+    90deg,
+    #62718abb 0%,
+    #68d391bb 70%,
+    #63b3edbb 100%
+  );
   border-radius: 8px;
   transition: width 0.3s ease;
 }
@@ -1770,6 +1841,12 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
+.tag.success {
+  background: rgba(54, 237, 69, 0.2);
+  color: #75f655;
+  border: 1px solid rgba(54, 237, 69, 0.3);
+}
+
 .tag.warning {
   background: rgba(237, 137, 54, 0.2);
   color: #f6ad55;
@@ -1806,7 +1883,12 @@ onUnmounted(() => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4a5568 0%, #68d391 50%, #63b3ed 100%);
+  background: linear-gradient(
+    90deg,
+    #62718abb 0%,
+    #68d391bb 50%,
+    #63b3edbb 100%
+  );
   border-radius: 12px;
   transition: width 0.3s ease;
   position: relative;

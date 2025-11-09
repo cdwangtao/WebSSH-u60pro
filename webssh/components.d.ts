@@ -43,7 +43,6 @@ declare module 'vue' {
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
-    ElText: typeof import('element-plus/es')['ElText']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     LoginAudit: typeof import('./src/components/LoginAudit.vue')['default']
     NetFilter: typeof import('./src/components/NetFilter.vue')['default']

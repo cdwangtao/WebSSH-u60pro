@@ -120,25 +120,10 @@
         </div>
         <div class="right" style="text-align: right">
           <el-button-group>
-            <el-popover placement="top-start" title="详情" :width="100" trigger="hover">
-              <template #reference>
-                <el-button type="primary" :icon="User">{{ globalStore.userName }}</el-button>
-              </template>
-              <p><el-text type="info">用户名称:&nbsp;&nbsp;{{ globalStore.userDesc }}</el-text></p>
-              <p><el-text type="info">过期时间:&nbsp;&nbsp;{{ globalStore.userExpiryAt }}</el-text></p>
-            </el-popover>
-
             <el-button type="primary" :icon="Lock" @click="data.modify_pwd_dialog_visible = true"></el-button>
 
             <!-- admin 角色才能管理 -->
-            <el-button v-if="globalStore.isAdmin === 'Y'" type="danger" :icon="Coin" @click="toManage">管理</el-button>
-            <!-- <el-popconfirm v-if="globalStore.isAdmin === 'Y'" confirmButtonText="确定" cancelButtonText="取消"
-              icon="el-icon-info" iconColor="red" title="确定离开此页面吗" @confirm="toManage">
-              <template #reference>
-                <el-button type="danger" :icon="Coin">管理</el-button>
-              </template>
-            </el-popconfirm> -->
-
+            <el-button v-if="globalStore.isAdmin === 'Y'" type="danger" :icon="Coin" @click="toManage"></el-button>
             <el-popconfirm confirmButtonText="退出" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
               title="确定退出吗" @confirm="logout">
               <template #reference>

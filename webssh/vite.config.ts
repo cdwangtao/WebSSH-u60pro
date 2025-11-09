@@ -57,7 +57,6 @@ export default defineConfig({
 
         // 是否允许不同源
         changeOrigin: true,
-
       },
     },
   },
