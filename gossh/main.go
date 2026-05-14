@@ -175,49 +175,84 @@ func UpdateVersionHandler(c *gin.Context) {
 		"data": info,
 	})
 }
-func downloadFile(url string, savePath string) error {
-	client := &http.Client{
-		Timeout: 120 * time.Second,
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("下载失败，HTTP 状态: %s", resp.Status)
-	}
-
-	out, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		return err
-	}
-
-	info, err := out.Stat()
-	if err != nil {
-		return err
-	}
-
-	if info.Size() <= 0 {
-		return fmt.Errorf("下载文件为空")
-	}
-
-	return nil
+var PROXIES = []string{
+	"https://v6.gh-proxy.org/",
+	"https://gh-proxy.org/",
+	"https://hk.gh-proxy.org/",
+	"https://cdn.gh-proxy.org/",
+	"https://edgeone.gh-proxy.org/",
+	"https://fastgit.cc/",
+	"https://git.yylx.win/",
+	"https://gh.llkk.cc/",
+	"https://ghfast.top/",
 }
+
+// downloadFile 支持直连和代理，每次请求单独超时
+func downloadFile(url string, savePath string) error {
+	// 先构建尝试 URL 列表
+	tryURLs := append([]string{url}, func() []string {
+		var proxied []string
+		for _, p := range PROXIES {
+			trimmed := strings.TrimPrefix(url, "https://")
+			if !strings.HasSuffix(p, "/") {
+				p += "/"
+			}
+			proxied = append(proxied, p+trimmed)
+		}
+		return proxied
+	}()...)
+
+	var lastErr error
+	for _, u := range tryURLs {
+		client := &http.Client{Timeout: 15 * time.Second} // 每次单独 15 秒
+
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+			resp.Body.Close()
+			continue
+		}
+
+		out, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			resp.Body.Close()
+			return err
+		}
+
+		_, err = io.Copy(out, resp.Body)
+		resp.Body.Close()
+		out.Close()
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		info, err := os.Stat(savePath)
+		if err != nil || info.Size() <= 0 {
+			lastErr = fmt.Errorf("下载文件为空")
+			continue
+		}
+
+		// 成功下载
+		return nil
+	}
+
+	return fmt.Errorf("下载失败，尝试直连和代理都失败: %v", lastErr)
+}
+
 func createTempUpdateScript(currentBin string, newBin string, logFile string, args []string) (string, error) {
 	pid := os.Getpid()
 
