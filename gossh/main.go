@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"gossh/app/config"
@@ -13,10 +14,43 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
+	"io"
+	"runtime"
+	"strconv"
 )
+
+
+var version = "dev"
+const GithubRepo = "cdwangtao/WebSSH-u60pro"
+type GithubAsset struct {
+	Name               string `json:"name"`
+	Size               int64  `json:"size"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+type GithubRelease struct {
+	TagName string        `json:"tag_name"`
+	HTMLURL string        `json:"html_url"`
+	Name    string        `json:"name"`
+	Body    string        `json:"body"`
+	Assets  []GithubAsset `json:"assets"`
+}
+
+type UpdateVersionInfo struct {
+	CurrentVersion string `json:"current_version"`
+	LatestVersion  string `json:"latest_version"`
+	HasUpdate      bool   `json:"has_update"`
+	ReleaseURL     string `json:"release_url"`
+	ReleaseName    string `json:"release_name"`
+	ReleaseBody    string `json:"release_body"`
+	AssetName      string `json:"asset_name"`
+	AssetSize      int64  `json:"asset_size"`
+}
 
 // 使用go 1.16+ 新特性
 //
@@ -42,6 +76,332 @@ func (w StaticFile) Open(name string) (fs.File, error) {
 	fullName = strings.ReplaceAll(fullName, `\`, `/`)
 	file, err := w.embedFS.Open(fullName)
 	return file, err
+}
+
+func getLatestGithubRelease() (*GithubRelease, error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", GithubRepo)
+
+	client := &http.Client{
+		Timeout: 12 * time.Second,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github api 返回异常: %s", resp.Status)
+	}
+
+	var release GithubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(release.TagName) == "" {
+		return nil, fmt.Errorf("github release tag 为空")
+	}
+
+	return &release, nil
+}
+func selectUpdateAsset(release *GithubRelease) (*GithubAsset, error) {
+	if release == nil {
+		return nil, fmt.Errorf("release 为空")
+	}
+
+	for _, asset := range release.Assets {
+		name := strings.ToLower(asset.Name)
+
+		if strings.HasPrefix(name, "webssh_") {
+			return &asset, nil
+		}
+	}
+
+	for _, asset := range release.Assets {
+		name := strings.ToLower(asset.Name)
+
+		if strings.Contains(name, "webssh") &&
+			!strings.HasSuffix(name, ".txt") &&
+			!strings.HasSuffix(name, ".sha256") &&
+			!strings.HasSuffix(name, ".json") {
+			return &asset, nil
+		}
+	}
+
+	return nil, fmt.Errorf("没有找到可用的 webssh 二进制资产")
+}
+func UpdateVersionHandler(c *gin.Context) {
+	release, err := getLatestGithubRelease()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "获取 GitHub 最新版本失败: " + err.Error(),
+		})
+		return
+	}
+
+	currentVersion := strings.TrimSpace(version)
+	latestVersion := strings.TrimSpace(release.TagName)
+
+	asset, assetErr := selectUpdateAsset(release)
+
+	info := UpdateVersionInfo{
+		CurrentVersion: currentVersion,
+		LatestVersion:  latestVersion,
+		HasUpdate:      currentVersion != latestVersion,
+		ReleaseURL:     release.HTMLURL,
+		ReleaseName:    release.Name,
+		ReleaseBody:    release.Body,
+	}
+
+	if assetErr == nil && asset != nil {
+		info.AssetName = asset.Name
+		info.AssetSize = asset.Size
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "ok",
+		"data": info,
+	})
+}
+func downloadFile(url string, savePath string) error {
+	client := &http.Client{
+		Timeout: 120 * time.Second,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("下载失败，HTTP 状态: %s", resp.Status)
+	}
+
+	out, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		return err
+	}
+
+	info, err := out.Stat()
+	if err != nil {
+		return err
+	}
+
+	if info.Size() <= 0 {
+		return fmt.Errorf("下载文件为空")
+	}
+
+	return nil
+}
+func createTempUpdateScript(currentBin string, newBin string, logFile string, args []string) (string, error) {
+	pid := os.Getpid()
+
+	workDir, err := os.Getwd()
+	if err != nil {
+		workDir = filepath.Dir(currentBin)
+	}
+
+	scriptPath := filepath.Join(os.TempDir(), fmt.Sprintf("webssh_update_%d.sh", time.Now().UnixNano()))
+
+	quotedArgs := ""
+	for _, arg := range args[1:] {
+		quotedArgs += " " + shellQuote(arg)
+	}
+
+	content := fmt.Sprintf(`#!/bin/sh
+
+LOG_FILE=%s
+OLD_PID=%d
+CURRENT_BIN=%s
+NEW_BIN=%s
+WORK_DIR=%s
+ARGS=%s
+
+echo "==============================" >> "$LOG_FILE"
+echo "WebSSH 更新开始: $(date)" >> "$LOG_FILE"
+echo "旧进程 PID: $OLD_PID" >> "$LOG_FILE"
+echo "当前二进制: $CURRENT_BIN" >> "$LOG_FILE"
+echo "新二进制: $NEW_BIN" >> "$LOG_FILE"
+
+sleep 1
+
+echo "停止旧进程..." >> "$LOG_FILE"
+kill "$OLD_PID" >> "$LOG_FILE" 2>&1 || true
+
+sleep 1
+
+if kill -0 "$OLD_PID" 2>/dev/null; then
+  echo "旧进程仍存在，强制结束..." >> "$LOG_FILE"
+  kill -9 "$OLD_PID" >> "$LOG_FILE" 2>&1 || true
+fi
+
+if [ ! -s "$NEW_BIN" ]; then
+  echo "新二进制不存在或为空，更新终止" >> "$LOG_FILE"
+  rm -f "$0"
+  exit 1
+fi
+
+chmod +x "$NEW_BIN"
+
+echo "备份旧二进制..." >> "$LOG_FILE"
+if [ -f "$CURRENT_BIN" ]; then
+  cp "$CURRENT_BIN" "$CURRENT_BIN.bak" >> "$LOG_FILE" 2>&1 || true
+fi
+
+echo "替换二进制..." >> "$LOG_FILE"
+mv "$NEW_BIN" "$CURRENT_BIN" >> "$LOG_FILE" 2>&1
+
+chmod +x "$CURRENT_BIN"
+
+echo "启动新进程..." >> "$LOG_FILE"
+cd "$WORK_DIR" || cd /
+nohup "$CURRENT_BIN" $ARGS >> /tmp/webssh_run.log 2>&1 &
+
+echo "新进程已启动: $(date)" >> "$LOG_FILE"
+echo "清理临时脚本" >> "$LOG_FILE"
+
+rm -f "$0"
+`, shellQuote(logFile), pid, shellQuote(currentBin), shellQuote(newBin), shellQuote(workDir), strconv.Quote(quotedArgs))
+
+	if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+		return "", err
+	}
+
+	return scriptPath, nil
+}
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+}
+func UpdateRunHandler(c *gin.Context) {
+	release, err := getLatestGithubRelease()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "获取 GitHub 最新版本失败: " + err.Error(),
+		})
+		return
+	}
+
+	currentVersion := strings.TrimSpace(version)
+	latestVersion := strings.TrimSpace(release.TagName)
+
+	if currentVersion == latestVersion {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 0,
+			"msg":  "当前已经是最新版本",
+			"data": gin.H{
+				"current_version": currentVersion,
+				"latest_version":  latestVersion,
+			},
+		})
+		return
+	}
+
+	asset, err := selectUpdateAsset(release)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	currentBin, err := os.Executable()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "获取当前二进制路径失败: " + err.Error(),
+		})
+		return
+	}
+
+	currentBin, err = filepath.EvalSymlinks(currentBin)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "解析当前二进制真实路径失败: " + err.Error(),
+		})
+		return
+	}
+
+	tmpNewBin := filepath.Join(os.TempDir(), fmt.Sprintf("webssh_%s_%s.new", runtime.GOARCH, latestVersion))
+	logFile := filepath.Join(os.TempDir(), "webssh_update.log")
+
+	if err := downloadFile(asset.BrowserDownloadURL, tmpNewBin); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "下载新版本失败: " + err.Error(),
+		})
+		return
+	}
+
+	if err := os.Chmod(tmpNewBin, 0755); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "设置新二进制权限失败: " + err.Error(),
+		})
+		return
+	}
+
+	scriptPath, err := createTempUpdateScript(currentBin, tmpNewBin, logFile, os.Args)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "创建临时更新脚本失败: " + err.Error(),
+		})
+		return
+	}
+
+	cmd := exec.Command("/bin/sh", scriptPath)
+
+	if err := cmd.Start(); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  "启动临时更新脚本失败: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "已开始更新，程序即将重启",
+		"data": gin.H{
+			"current_version": currentVersion,
+			"latest_version":  latestVersion,
+			"asset_name":      asset.Name,
+			"asset_size":      asset.Size,
+			"log_file":        logFile,
+			"script":          scriptPath,
+		},
+	})
 }
 
 func init() {
@@ -173,6 +533,11 @@ func main() {
 	{ // 系统配置
 		auth.GET("/api/sys/config", service.GetRunConf)
 		auth.POST("/api/sys/config", service.SetRunConf)
+	}
+
+	{ // 系统更新
+		auth.GET("/api/update/version", UpdateVersionHandler)
+		auth.POST("/api/update/run", UpdateRunHandler)
 	}
 
 	address := fmt.Sprintf("%s:%s", config.DefaultConfig.Address, config.DefaultConfig.Port)

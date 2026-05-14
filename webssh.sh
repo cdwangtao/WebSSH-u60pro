@@ -83,8 +83,6 @@ setup_webssh() {
         return 1
     fi
     REMOTE_VERSION=$(echo "$REMOTE_VERSION" | tr -d '\r\n')
-    _menu_ver="$REMOTE_VERSION"
-    _menu_date=$(echo "$_menu_ver" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_.*/\1-\2-\3/')
     echo "  最新版本: $REMOTE_VERSION"
     
     if [ -f "$Module_dir/webssh" ]; then
@@ -108,33 +106,41 @@ setup_webssh() {
             return 0
         fi
         
+        echo "停止 WebSSH 服务..."
+        $STOP_CMD 2>/dev/null
+        
         echo "下载最新版本..."
         if ! download_file "${WEBSH_URL_PREFIX}${REMOTE_VERSION}" "$Module_dir/webssh.new" 1; then
             echo "  下载失败，请检查网络连接"
+            echo "  尝试启动旧版本..."
+            $BOOT_CMD 2>/dev/null
             return 1
         fi
         echo "  下载完成"
-
+        
+        # 设置执行权限并替换
         chmod 755 "$Module_dir/webssh.new"
-
+        mv -f "$Module_dir/webssh.new" "$Module_dir/webssh"
+        
+        # 更新版本文件
+        echo "$REMOTE_VERSION" > "$Module_dir/VERSION.txt"
+        
+        # 启动服务
+        echo "重启 WebSSH 服务..."
+        if ! $BOOT_CMD 2>/dev/null; then
+            echo "启动失败，请检查 $Module_dir/service.sh"
+            return 1
+        fi
+        
+        clear
         echo ""
         echo "======================================"
-        echo "  新版本 $REMOTE_VERSION 已下载，将在后台完成切换"
-        echo "  当前 SSH 连接可能会短暂中断，请稍后重新连接"
+        echo "       WebSSH 更新完成"
+        echo "--------------------------------------"
+        echo "  版本   : $LOCAL_VERSION -> $REMOTE_VERSION"
         echo "  访问   : http://192.168.0.1:8899"
         echo "======================================"
         echo ""
-
-        nohup sh -c "
-            sleep 1
-            $STOP_CMD 2>/dev/null
-            sleep 1
-            mv -f '$Module_dir/webssh.new' '$Module_dir/webssh'
-            chmod 755 '$Module_dir/webssh'
-            echo '$REMOTE_VERSION' > '$Module_dir/VERSION.txt'
-            sleep 1
-            $BOOT_CMD 2>/dev/null
-        " </dev/null >/dev/null 2>&1 &
     else
         # 安装场景
         # 确保目标目录存在
@@ -241,24 +247,25 @@ force_install() {
     echo "获取版本信息..."
     if REMOTE_VERSION=$(fetch_url "$VERSION_URL" 2>/dev/null); then
         REMOTE_VERSION=$(echo "$REMOTE_VERSION" | tr -d '\r\n')
-        _menu_ver="$REMOTE_VERSION"
-        _menu_date=$(echo "$_menu_ver" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_.*/\1-\2-\3/')
         echo "  最新版本: $REMOTE_VERSION"
     else
-        echo "  获取版本失败，无法继续安装"
-        return 1
+        REMOTE_VERSION="未知"
+        echo "  获取版本失败，使用未知版本"
     fi
+    
+    echo "停止 WebSSH 服务..."
+    $STOP_CMD 2>/dev/null || true
     
     mkdir -p "$Module_dir"
     
     echo "下载 WebSSH 主程序..."
-    if ! download_file "${WEBSH_URL_PREFIX}${REMOTE_VERSION}" "$Module_dir/webssh.new" 1; then
+    if ! download_file "${WEBSH_URL_PREFIX}${REMOTE_VERSION}" "$Module_dir/webssh" 1; then
         echo "  下载失败，请检查网络或链接"
         return 1
     fi
     echo "  下载完成"
 
-    chmod 755 "$Module_dir/webssh.new"
+    chmod 755 "$Module_dir/webssh"
 
     cat > "$Module_dir/service.sh" << SEOF
 #!/system/bin/sh
@@ -318,28 +325,30 @@ SEOF
         fi
     fi
 
-    nohup sh -c "
-        sleep 1
-        $STOP_CMD 2>/dev/null || true
-        sleep 1
-        mv -f '$Module_dir/webssh.new' '$Module_dir/webssh'
-        chmod 755 '$Module_dir/webssh'
-        echo '$REMOTE_VERSION' > '$Module_dir/VERSION.txt'
-        sleep 1
-        $BOOT_CMD 2>/dev/null
-    " </dev/null >/dev/null 2>&1 &
+    # 启动
+    echo "启动 WebSSH 服务..."
+    if ! $BOOT_CMD 2>/dev/null; then
+        echo "启动失败，请检查 $Module_dir/service.sh"
+        return 1
+    fi
+    
+    sleep 3
+    clear
 
     download_file "$SCRIPT_URL" "$SCRIPT_TMP" && cp "$SCRIPT_TMP" "$Module_dir/webssh.sh"
     add_alias
 
     echo ""
     echo "======================================"
-    echo "  WebSSH 将在后台完成切换"
-    echo "  当前连接可能短暂中断，请稍后重连"
+    echo "       WebSSH 强制安装完成"
+    echo "--------------------------------------"
+    echo "  版本   : $REMOTE_VERSION"
+    echo "  目录   : $Module_dir"
     echo "  访问   : http://192.168.0.1:8899"
     echo "  快捷键 : webssh (重开终端生效)"
     echo "======================================"
     echo ""
+    echo "  首次使用请访问上方地址进行初始化配置"
 }
 
 remove() {
@@ -399,12 +408,11 @@ restart() {
     $BOOT_CMD
 }
 
-_menu_ver=$(fetch_url "$VERSION_URL" 2>/dev/null | tr -d '\r\n')
-_menu_ver=${_menu_ver:-"未知"}
-_menu_date=$(echo "$_menu_ver" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_.*/\1-\2-\3/')
-
 while true; do
     clear
+    _menu_ver=$(fetch_url "$VERSION_URL" 2>/dev/null | tr -d '\r\n')
+    _menu_ver=${_menu_ver:-"未知"}
+    _menu_date=$(echo "$_menu_ver" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_.*/\1-\2-\3/')
     if [ -f "$Module_dir/VERSION.txt" ]; then
         _local_ver=$(cat "$Module_dir/VERSION.txt" 2>/dev/null | tr -d '\r\n')
     else
@@ -460,10 +468,6 @@ while true; do
         _stop_idx=$_idx; echo "  $_idx) 停止 (stop)"; _idx=$((_idx + 1))
         _restart_idx=$_idx; echo "  $_idx) 重启 (restart)"; _idx=$((_idx + 1))
     fi
-    _install_idx=${_install_idx:-"__none__"}
-    _start_idx=${_start_idx:-"__none__"}
-    _stop_idx=${_stop_idx:-"__none__"}
-    _restart_idx=${_restart_idx:-"__none__"}
     _exit_idx=0
     echo "  0) 退出 (exit)"
     echo "======================================"

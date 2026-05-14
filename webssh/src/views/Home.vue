@@ -1,472 +1,504 @@
 <template>
   <el-container>
-    <el-header style="
-        height: fit-content;
-        padding-left: 0px;
-        padding-right: 0px;
-        background-color: #409eff;
-      ">
-      <div class="nav">
-        <div style="flex:1">
-          <el-button-group>
-            <!-- 打开已存在主机配置 -->
-            <el-button type="primary" :icon="Menu" @click="data.modify_devices_dialog_visible = true"></el-button>
+    
+          <el-header 
+            v-show="!data.navCollapsed"
+            class="top-nav-header">
+            <div class="nav">
+              <div style="flex:1">
+                <el-button-group>
+                  <!-- 打开已存在主机配置 -->
+                  <el-button type="primary" :icon="Menu" @click="data.modify_devices_dialog_visible = true"></el-button>
 
-            <el-button type="primary" @click="newHost" :icon="CirclePlus"></el-button>
-            <!-- 执行命令及收藏 -->
-            <el-popover placement="bottom" trigger="click" width="fit-content">
-              <template #reference>
-                <el-button type="primary" :icon="Edit"></el-button>
-              </template>
-              <el-form :model="cmd">
-                <el-form-item label="执行命令">
-                  <el-input v-model="cmd.data" type="textarea" autocomplete="off" placeholder="命令或脚本" />
-                </el-form-item>
-                <el-row>
-                  <el-form-item label="会话选择">
-                    <el-radio-group v-model="cmd.node">
-                      <el-radio value="current">当前会话</el-radio>
-                      <el-radio value="all">所有会话</el-radio>
-                    </el-radio-group>
-                  </el-form-item>
-                </el-row>
-                <el-row>
-                  <el-form-item>
-                    <el-input v-model="cmd.name" maxlength="32" show-word-limit placeholder="如果需要收藏命令,请输入名称">
-                      <template #append>
-                        <el-button-group style="color:blue;display:flex">
-                          <el-button @click="addCmdNote">收藏</el-button>
-                          <el-button @click="execCmd">执行</el-button>
-                        </el-button-group>
-                      </template>
-                    </el-input>
-                  </el-form-item>
-                </el-row>
-              </el-form>
-            </el-popover>
+                  <el-button type="primary" @click="newHost" :icon="CirclePlus"></el-button>
+                  <!-- 执行命令及收藏 -->
+                  <el-popover placement="bottom" trigger="click" width="fit-content">
+                    <template #reference>
+                      <el-button type="primary" :icon="CopyDocument"></el-button>
+                    </template>
+                    <el-form :model="cmd">
+                      <el-form-item label="执行命令">
+                        <el-input v-model="cmd.data" type="textarea" autocomplete="off" placeholder="命令或脚本" />
+                      </el-form-item>
+                      <el-row>
+                        <el-form-item label="会话选择">
+                          <el-radio-group v-model="cmd.node">
+                            <el-radio value="current">当前会话</el-radio>
+                            <el-radio value="all">所有会话</el-radio>
+                          </el-radio-group>
+                        </el-form-item>
+                      </el-row>
+                      <el-row>
+                        <el-form-item>
+                          <el-input v-model="cmd.name" maxlength="32" show-word-limit placeholder="收藏该命令,在此输名称">
+                            <template #append>
+                              <el-button-group style="color:blue;display:flex">
+                                <el-button @click="addCmdNote">收藏</el-button>
+                                <el-button @click="execCmd">执行</el-button>
+                              </el-button-group>
+                            </template>
+                          </el-input>
+                        </el-form-item>
+                      </el-row>
+                    </el-form>
+                  </el-popover>
 
-            <!-- 命令收藏列表 -->
-            <el-popover placement="bottom" trigger="click" :width="'95%'" :style="{ maxWidth: '800px' }">
-              <template #reference>
-                <el-button type="primary" :icon="Star"></el-button>
-              </template>
-            
-              <div style="overflow-x: auto;">
-                <el-table :data="filterCmdNoteTable" :height="260" style="min-width: 600px;">
-                  <el-table-column sortable width="180" :show-overflow-tooltip="true" property="cmd_name" label="名称"></el-table-column>
-            
-                  <el-table-column sortable property="cmd_data" label="命令">
-                    <template #default="scope">
-                      <el-popover effect="light" trigger="hover" placement="right" :width="'auto'">
-                        <template #default>
-                          <div style="word-break: break-all;">命令详情</div>
-                          <el-input
-                            v-model="scope.row.cmd_data"
-                            type="textarea"
-                            :autosize="{ minRows: 4, maxRows: 20 }"
-                            :disabled="true"
-                            style="width: 100%; min-width: 300px;"
-                          />
-                          <div style="margin-top: 10px;">
+                  <!-- 命令收藏列表 -->
+                  <el-popover placement="bottom" trigger="click" :width="'95%'" :style="{ maxWidth: '800px' }">
+                    <template #reference>
+                      <el-button type="primary" :icon="Star"></el-button>
+                    </template>
+
+                    <div style="overflow-x: auto;">
+                      <el-table :data="filterCmdNoteTable" :height="260" style="min-width: 600px;">
+                        <el-table-column sortable width="180" :show-overflow-tooltip="true" property="cmd_name"
+                          label="名称"></el-table-column>
+
+                        <el-table-column sortable property="cmd_data" label="命令">
+                          <template #default="scope">
+                            <el-popover effect="light" trigger="hover" placement="right" :width="'auto'">
+                              <template #default>
+                                <div style="word-break: break-all;">命令详情</div>
+                                <el-input v-model="scope.row.cmd_data" type="textarea" :autosize="{ minRows: 4, maxRows: 20 }"
+                                  :disabled="true" style="width: 100%; min-width: 300px;" />
+                                <div style="margin-top: 10px;">
+                                  <el-button-group style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                    <el-tooltip effect="dark" content="执行命令,发送到所有会话" placement="top-start">
+                                      <el-button type="warning" @click="execCmdAllSession(scope.row)"
+                                        style="flex: 1 1 auto;">发送所有会话</el-button>
+                                    </el-tooltip>
+                                    <el-tooltip effect="dark" content="执行命令,发送到当前会话" placement="top-start">
+                                      <el-button type="primary" @click="execCmdCurrentSession(scope.row)"
+                                        style="flex: 1 1 auto;">发送当前会话</el-button>
+                                    </el-tooltip>
+                                  </el-button-group>
+                                </div>
+                              </template>
+                              <template #reference>
+                                {{ scope.row.cmd_data.substring(0, 15) + "..." }}
+                              </template>
+                            </el-popover>
+                          </template>
+                        </el-table-column>
+
+                        <el-table-column label="操作" fixed="right" width="320">
+                          <template #header>
+                            <el-input v-model="searchCmdNote" placeholder="名称搜索" style="width: 100%;" />
+                          </template>
+                          <template #default="scope">
                             <el-button-group style="display: flex; flex-wrap: wrap; gap: 5px;">
+                              <el-popconfirm confirmButtonText="删除" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
+                                title="确定删除吗" @confirm="delCmdNote(scope.row.id)">
+                                <template #reference>
+                                  <el-button type="danger" style="flex: 1 1 auto;">删除</el-button>
+                                </template>
+                              </el-popconfirm>
+
                               <el-tooltip effect="dark" content="执行命令,发送到所有会话" placement="top-start">
-                                <el-button type="warning" @click="execCmdAllSession(scope.row)" style="flex: 1 1 auto;">发送所有会话</el-button>
+                                <el-button type="warning" @click="execCmdAllSession(scope.row)"
+                                  style="flex: 1 1 auto;">发送所有会话</el-button>
                               </el-tooltip>
                               <el-tooltip effect="dark" content="执行命令,发送到当前会话" placement="top-start">
-                                <el-button type="primary" @click="execCmdCurrentSession(scope.row)" style="flex: 1 1 auto;">发送当前会话</el-button>
+                                <el-button type="primary" @click="execCmdCurrentSession(scope.row)"
+                                  style="flex: 1 1 auto;">发送当前会话</el-button>
                               </el-tooltip>
                             </el-button-group>
-                          </div>
-                        </template>
-                        <template #reference>
-                          {{ scope.row.cmd_data.substring(0, 15) + "..." }}
-                        </template>
-                      </el-popover>
-                    </template>
-                  </el-table-column>
-            
-                  <el-table-column label="操作" fixed="right" width="320">
-                    <template #header>
-                      <el-input v-model="searchCmdNote" placeholder="名称搜索" style="width: 100%;" />
-                    </template>
-                    <template #default="scope">
-                      <el-button-group style="display: flex; flex-wrap: wrap; gap: 5px;">
-                        <el-popconfirm
-                          confirmButtonText="删除"
-                          cancelButtonText="取消"
-                          icon="el-icon-info"
-                          iconColor="red"
-                          title="确定删除吗"
-                          @confirm="delCmdNote(scope.row.id)"
-                        >
-                          <template #reference>
-                            <el-button type="danger" style="flex: 1 1 auto;">删除</el-button>
                           </template>
-                        </el-popconfirm>
-            
-                        <el-tooltip effect="dark" content="执行命令,发送到所有会话" placement="top-start">
-                          <el-button type="warning" @click="execCmdAllSession(scope.row)" style="flex: 1 1 auto;">发送所有会话</el-button>
-                        </el-tooltip>
-                        <el-tooltip effect="dark" content="执行命令,发送到当前会话" placement="top-start">
-                          <el-button type="primary" @click="execCmdCurrentSession(scope.row)" style="flex: 1 1 auto;">发送当前会话</el-button>
-                        </el-tooltip>
-                      </el-button-group>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+                  </el-popover>
+                </el-button-group>
               </div>
-            </el-popover>
-          </el-button-group>
-        </div>
-        <div class="right" style="text-align: right">
-          <el-button-group>
-            <el-button type="primary" :icon="Lock" @click="data.modify_pwd_dialog_visible = true"></el-button>
+              <div class="right" style="text-align: right">
+                <el-button-group>
+                  <el-button type="primary" :icon="Upload" :loading="chkingUpdate" @click="checkUpdate"></el-button>
 
-            <!-- admin 角色才能管理 -->
-            <el-button v-if="globalStore.isAdmin === 'Y'" type="danger" :icon="Coin" @click="toManage"></el-button>
-            <el-popconfirm confirmButtonText="退出" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
-              title="确定退出吗" @confirm="logout">
-              <template #reference>
-                <el-button :icon="SwitchButton" type="danger"></el-button>
-              </template>
-            </el-popconfirm>
-          </el-button-group>
-        </div>
-      </div>
-    </el-header>
+                  <el-button type="primary" :icon="Avatar" @click="data.modify_pwd_dialog_visible = true"></el-button>
 
-    <div>
+                  <!-- admin 角色才能管理 -->
+                  <el-button v-if="globalStore.isAdmin === 'Y'" type="danger" :icon="Tools" @click="toManage"></el-button>
+                  <el-popconfirm confirmButtonText="退出" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
+                    title="确定退出吗" @confirm="logout">
+                    <template #reference>
+                      <el-button :icon="SwitchButton" type="danger"></el-button>
+                    </template>
+                  </el-popconfirm>
+                </el-button-group>
+              </div>
+            </div>
 
-      <el-dialog
-        :title="'主机管理'"
-        v-model="data.modify_devices_dialog_visible"
-        :width="'95%'"
-        :style="{ maxWidth: '800px', top: '20px' }"
-        :modal-append-to-body="true"
-        :destroy-on-close="true"
-        :center="false"
-        :fullscreen="isMobile"
-      >
-        <!-- 搜索输入 -->
-        <el-input
-          v-model="searchHost"
-          placeholder="名称及主机搜索"
-          clearable
-          style="margin-bottom: 10px; width: 100%;"
-        />
+            <!-- 展开状态：向上箭头，点击收起 -->
+            <button
+              class="nav-anchor-toggle nav-anchor-toggle-open"
+              @click="data.navCollapsed = true"
+              title="收起导航栏"
+            >
+              <span class="nav-anchor-icon">
+                <el-icon>
+                  <ArrowUp />
+                </el-icon>
+              </span>
+            </button>
+          </el-header>
 
-        <el-table
-          :data="filterHostTable"
-          :height="tableHeight"
-          :show-overflow-tooltip="true"
-          style="width: 100%;"
-        >
-          <el-table-column sortable fixed="left" width="150" property="name" label="名称" />
-          <el-table-column sortable width="150" property="address" label="主机" />
-          <el-table-column sortable width="100" property="user" label="用户" />
-          <el-table-column sortable width="90" property="port" label="端口" />
-          <el-table-column label="操作" fixed="right" width="250">
-            <template #default="scope">
-              <el-button size="small" @click="editHost(scope.row)">编辑</el-button>
-              <el-popconfirm
-                confirmButtonText="删除"
-                cancelButtonText="取消"
-                icon="el-icon-info"
-                iconColor="red"
-                title="确定删除吗"
-                @confirm="deleteHost(scope.row)"
-              >
-                <template #reference>
-                  <el-button size="small" type="danger">删除</el-button>
-                </template>
-              </el-popconfirm>
-              <el-button size="small" type="primary" @click="connectHost(scope.row)">连接</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <!-- 折叠状态：只显示一个向下箭头 -->
+          <button
+            v-show="data.navCollapsed"
+            class="nav-anchor-toggle nav-anchor-toggle-closed"
+            @click="data.navCollapsed = false"
+            title="展开导航栏"
+          >
+            <span class="nav-anchor-icon">
+              <el-icon>
+                <ArrowDown />
+              </el-icon>
+            </span>
+          </button>
 
-        <span slot="footer" class="dialog-footer">
-          <el-button style="margin-top: 10px;" @click="dialogVisible = false">关闭</el-button>
-        </span>
-      </el-dialog>
+          <div>
+            <el-dialog
+              :title="'主机管理'"
+              v-model="data.modify_devices_dialog_visible"
+              :width="'95%'"
+              :style="{ maxWidth: '780px', top: '20px' }"
+              custom-class="modern-dialog host-manage-dialog"
+              :modal-append-to-body="true"
+              :destroy-on-close="true"
+              :center="false"
+              :fullscreen="isMobile"
+            >
+              <!-- 搜索输入 -->
+              <el-input v-model="searchHost" placeholder="名称及主机搜索" clearable style="margin-bottom: 10px; width: 100%;" />
 
-      <!-- 修改密码 -->
-      <el-dialog v-model="data.modify_pwd_dialog_visible" title="修改密码" style="max-width: 300px;" width="100%" center>
-        <el-form>
-          <el-form-item>
-            <el-input v-model="data.new_pwd_one" trim type="password" minlength="3" maxlength="64" show-word-limit
-              show-password clearable placeholder="输入新密码">
-              <template #prepend>输入新密码</template>
-            </el-input>
-          </el-form-item>
-          <el-form-item>
-            <el-input v-model="data.new_pwd_two" trim type="password" minlength="3" maxlength="64" show-word-limit
-              show-password clearable placeholder="确认新密码">
-              <template #prepend>确认新密码</template>
-            </el-input>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <div class="dialog-footer">
-            <el-button @click="data.modify_pwd_dialog_visible = false">取消</el-button>
-            <el-button type="primary" @click="modifyPassword">
-              提交
-            </el-button>
-          </div>
-        </template>
-      </el-dialog>
-
-      <!-- SSH主机配置弹窗 -->
-      <el-dialog
-        :title="data.mode == 0 ? '新增主机' : '更新主机'"
-        v-model="data.host_dialog_visible"
-        :width="'95%'"
-        :style="{ maxWidth: '1000px', top: '20px' }"
-      >
-        <el-form label-width="80px" ref="host_from">
-          <el-collapse v-model="data.host_config_collapse">
-            <el-collapse-item title="基础配置" name="1">
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item label="名称" prop="name">
-                    <el-input v-model.trim="data.name" minlength="1" maxlength="30" show-word-limit placeholder="请输入名称"></el-input>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item label="主机" prop="address">
-                    <el-input v-model.trim="data.address" minlength="1" maxlength="60" show-word-limit placeholder="请输入主机地址"></el-input>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="8">
-                  <el-form-item label="网络" prop="net_type">
-                    <el-radio-group v-model="data.net_type">
-                      <el-radio value="tcp4">IPv4</el-radio>
-                      <el-radio value="tcp6">IPv6</el-radio>
-                    </el-radio-group>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item label="用户" prop="user">
-                    <el-input minlength="1" maxlength="60" v-model.trim="data.user" show-word-limit placeholder="请输入用户名"></el-input>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="8">
-                  <el-form-item label="端口" prop="port">
-                    <el-input-number v-model="data.port" :min="1" :max="65535" style="width: 100%;"></el-input-number>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row>
-                <el-form-item label="认证方式">
-                  <el-radio-group v-model="data.auth_type">
-                    <el-radio value="pwd">密码</el-radio>
-                    <el-radio value="cert">密钥</el-radio>
-                  </el-radio-group>
-                </el-form-item>
-              </el-row>
-
-              <el-row :gutter="10" v-if="data.auth_type === 'cert'">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item label="密钥">
-                    <el-input v-model="data.cert_data" type="textarea" placeholder="请输入密钥内容或上传"></el-input>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="8">
-                  <el-form-item label="上传">
-                    <el-button type="primary" @click="addCertFile">上传密钥文件</el-button>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item v-if="data.auth_type === 'cert'" label="密钥口令" prop="cert_pwd">
-                    <el-input v-model.trim="data.cert_pwd" type="password" show-password show-word-limit placeholder="密钥口令"></el-input>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="16">
-                  <el-form-item v-if="data.auth_type === 'pwd'" label="SSH密码" prop="pwd">
-                    <el-input v-model.trim="data.pwd" type="password" show-password show-word-limit placeholder="SSH密码"></el-input>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </el-collapse-item>
-
-            <el-collapse-item title="高级配置" name="2">
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="9">
-                  <el-form-item label="终端类型" prop="pty_type">
-                    <el-select v-model="data.pty_type" placeholder="请选择终端类型" style="width: 100%;">
-                      <el-option label="xterm-256color" value="xterm-256color" />
-                      <el-option label="linux" value="linux" />
-                      <el-option label="xtrem" value="xtrem" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="5">
-                  <el-form-item label="字体颜色" prop="foreground">
-                    <el-color-picker v-model="data.foreground"></el-color-picker>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="5">
-                  <el-form-item label="背景颜色" prop="background">
-                    <el-color-picker v-model="data.background"></el-color-picker>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="5">
-                  <el-form-item label="光标颜色" prop="cursor_color">
-                    <el-color-picker v-model="data.cursor_color"></el-color-picker>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="10">
-                <el-col :xs="24" :sm="9">
-                  <el-form-item label="字体">
-                    <el-select v-model="data.font_family" placeholder="请选择字体" style="width: 100%;">
-                      <el-option label="Courier" value="Courier" />
-                      <el-option label="Courier New" value="Courier New" />
-                      <el-option label="Menlo" value="Menlo" />
-                      <el-option label="Monaco" value="Monaco" />
-                      <el-option label="monospace" value="monospace" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="5">
-                  <el-form-item label="字体大小">
-                    <el-select v-model.number="data.font_size" placeholder="请选择字体大小" style="width: 100%;">
-                      <el-option v-for="n in [8,12,14,16,18,20,22,24,26,28,30,32,34]" :key="n" :label="n" :value="n"></el-option>
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :xs="24" :sm="4">
-                  <el-form-item label="光标样式">
-                    <el-select v-model="data.cursor_style" placeholder="请选择光标样式" style="width: 100%;">
-                      <el-option label="块状" value="block" />
-                      <el-option label="下划线" value="underline" />
-                      <el-option label="竖线" value="bar" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row>
-                <el-col :xs="24">
-                  <el-form-item label="连接命令">
-                    <el-input v-model="data.init_cmd" type="textarea" :rows="2" placeholder="请输入连接后执行命令" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row>
-                <el-col :xs="24">
-                  <el-form-item label="连接横幅">
-                    <el-input v-model="data.init_banner" type="textarea" :rows="2" placeholder="请输入连接后提示横幅" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </el-collapse-item>
-          </el-collapse>
-        </el-form>
-
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button style="margin-top: 10px;" @click="data.host_dialog_visible = false">取消</el-button>
-            <el-button style="margin-top: 10px;" type="success" @click="connect">连接</el-button>
-          </span>
-          <div style="width: 10px;display:inline-block"></div>
-          <span v-if="data.mode == 0" class="dialog-footer">
-            <el-button style="margin-top: 10px;" type="primary" @click="createHost(false)">保存</el-button>
-            <el-button style="margin-top: 10px;" type="primary" @click="createHost(true)">连接并保存</el-button>
-          </span>
-          <span v-if="data.mode == 1" class="dialog-footer">
-            <el-button style="margin-top: 10px;" type="primary" @click="updateHost(false)">更新</el-button>
-            <el-button style="margin-top: 10px;" type="primary" @click="updateHost(true)">连接并更新</el-button>
-          </span>
-        </template>
-      </el-dialog>
-
-      <!-- SSH文件上传下载弹窗 -->
-      <el-dialog v-model="data.file_dialog_visible" width="80%" custom-class="file-dialog" top="60px">
-        <template #header>
-          <span v-html="title"></span>
-        </template>
-
-        <el-button-group style="width:auto;display: flex; flex-wrap: nowrap;overflow-x: auto;">
-          <el-button v-for="(item, index) in data.dir_info.paths" :key="index"
-            @click="listDir(item.dir, data.current_host)">{{ item.name }}</el-button>
-        </el-button-group>
-        </br>
-
-        <el-form-item style="margin-top: 10px;">
-          <el-input v-model="data.sftp_current_dir" style="width: 100%;" placeholder="请输入路径" class="input-with-select">
-            <template #append>
-              <el-button-group style="color:blue">
-                <el-button @click="listDir(data.sftp_current_dir, data.current_host)">进入</el-button>
-                <el-button @click="uploadFile(data.sftp_current_dir)">上传</el-button>
-                <el-button @click="createDir(data.sftp_current_dir, data.current_host)">创建目录</el-button>
-                <el-button @click="listDir(data.sftp_current_dir, data.current_host)">刷新</el-button>
-              </el-button-group>
-            </template>
-          </el-input>
-        </el-form-item>
-        </br>
-
-        <el-row>
-          <el-col :span="24">
-            <el-progress :percentage="data.sftp_upload_percentage" />
-          </el-col>
-        </el-row>
-
-        <el-table :data="data.dir_info.files" height="400" :show-overflow-tooltip="true">
-          <el-table-column prop="name" label="文件名" fixed="left" sortable>
-            <template #default="scope">
-              <el-button v-if="scope.row.type === 'f'" @click="downloadFile(scope.row)" type="primary" link
-                :icon="Files" style="color: green">{{ scope.row.name }}</el-button>
-              <el-button v-if="scope.row.type === 'd'" @click="listDir(scope.row.path, data.current_host)"
-                type="primary" link :icon="FolderOpened">{{ scope.row.name }}</el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="size" label="大小" width="100" sortable></el-table-column>
-          <el-table-column prop="mode" label="权限" width="100" sortable></el-table-column>
-          <el-table-column prop="mod_time" label="修改日期" width="180" sortable></el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="scope">
-              <el-button-group>
-                <el-button v-if="scope.row.type == 'f'" @click="downloadFile(scope.row)" type="success"
-                  :icon="Bottom">下载</el-button>
-                <el-button v-else type="primary" :icon="Upload" @click="uploadFile(scope.row.path)">上传</el-button>
-                <el-popconfirm confirmButtonText="删除" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
-                  title="确定删除吗" @confirm="deleteFile(scope.row)">
-                  <template #reference>
-                    <el-button type="danger">删除</el-button>
+              <el-table :data="filterHostTable" :height="tableHeight" :show-overflow-tooltip="true" style="width: 100%;">
+                <el-table-column sortable fixed="left" width="150" property="name" label="名称" />
+                <el-table-column sortable width="150" property="address" label="主机" />
+                <el-table-column sortable width="100" property="user" label="用户" />
+                <el-table-column sortable width="90" property="port" label="端口" />
+                <el-table-column label="操作" fixed="right" width="250">
+                  <template #default="scope">
+                    <el-button size="small" @click="editHost(scope.row)">编辑</el-button>
+                    <el-popconfirm confirmButtonText="删除" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
+                      title="确定删除吗" @confirm="deleteHost(scope.row)">
+                      <template #reference>
+                        <el-button size="small" type="danger">删除</el-button>
+                      </template>
+                    </el-popconfirm>
+                    <el-button size="small" type="primary" @click="connectHost(scope.row)">连接</el-button>
                   </template>
-                </el-popconfirm>
+                </el-table-column>
+              </el-table>
+
+              <span slot="footer" class="dialog-footer">
+                <el-button style="margin-top: 10px;" @click="data.modify_devices_dialog_visible = false">关闭</el-button>
+              </span>
+            </el-dialog>
+
+            <!-- 修改密码 -->
+            <el-dialog
+              v-model="data.modify_pwd_dialog_visible"
+              title="修改密码"
+              custom-class="modern-dialog password-dialog"
+              style="max-width: 360px;"
+              width="100%"
+              center
+            >
+              <el-form>
+                <el-form-item>
+                  <el-input v-model="data.new_pwd_one" trim type="password" minlength="3" maxlength="64" show-word-limit
+                    show-password clearable placeholder="输入新密码">
+                    <template #prepend>输入新密码</template>
+                  </el-input>
+                </el-form-item>
+                <el-form-item>
+                  <el-input v-model="data.new_pwd_two" trim type="password" minlength="3" maxlength="64" show-word-limit
+                    show-password clearable placeholder="确认新密码">
+                    <template #prepend>确认新密码</template>
+                  </el-input>
+                </el-form-item>
+              </el-form>
+              <template #footer>
+                <div class="dialog-footer">
+                  <el-button @click="data.modify_pwd_dialog_visible = false">取消</el-button>
+                  <el-button type="primary" @click="modifyPassword">
+                    提交
+                  </el-button>
+                </div>
+              </template>
+            </el-dialog>
+
+            <!-- SSH主机配置弹窗 -->
+            <el-dialog
+              :title="data.mode == 0 ? '新增主机' : '更新主机'"
+              v-model="data.host_dialog_visible"
+              :width="'95%'"
+              :style="{ maxWidth: '1040px', top: '20px' }"
+              custom-class="modern-dialog host-config-dialog"
+            >
+              <el-form label-width="80px" ref="host_from">
+                <el-collapse v-model="data.host_config_collapse">
+                  <el-collapse-item title="基础配置" name="1">
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item label="名称" prop="name">
+                          <el-input v-model.trim="data.name" minlength="1" maxlength="30" show-word-limit
+                            placeholder="请输入名称"></el-input>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item label="主机" prop="address">
+                          <el-input v-model.trim="data.address" minlength="1" maxlength="60" show-word-limit
+                            placeholder="请输入主机地址"></el-input>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="8">
+                        <el-form-item label="网络" prop="net_type">
+                          <el-radio-group v-model="data.net_type">
+                            <el-radio value="tcp4">IPv4</el-radio>
+                            <el-radio value="tcp6">IPv6</el-radio>
+                          </el-radio-group>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item label="用户" prop="user">
+                          <el-input minlength="1" maxlength="60" v-model.trim="data.user" show-word-limit
+                            placeholder="请输入用户名"></el-input>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="8">
+                        <el-form-item label="端口" prop="port">
+                          <el-input-number v-model="data.port" :min="1" :max="65535" style="width: 100%;"></el-input-number>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row>
+                      <el-form-item label="认证方式">
+                        <el-radio-group v-model="data.auth_type">
+                          <el-radio value="pwd">密码</el-radio>
+                          <el-radio value="cert">密钥</el-radio>
+                        </el-radio-group>
+                      </el-form-item>
+                    </el-row>
+
+                    <el-row :gutter="10" v-if="data.auth_type === 'cert'">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item label="密钥">
+                          <el-input v-model="data.cert_data" type="textarea" placeholder="请输入密钥内容或上传"></el-input>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="8">
+                        <el-form-item label="上传">
+                          <el-button type="primary" @click="addCertFile">上传密钥文件</el-button>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item v-if="data.auth_type === 'cert'" label="密钥口令" prop="cert_pwd">
+                          <el-input v-model.trim="data.cert_pwd" type="password" show-password show-word-limit
+                            placeholder="密钥口令"></el-input>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="16">
+                        <el-form-item v-if="data.auth_type === 'pwd'" label="SSH密码" prop="pwd">
+                          <el-input v-model.trim="data.pwd" type="password" show-password show-word-limit
+                            placeholder="SSH密码"></el-input>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                  </el-collapse-item>
+
+                  <el-collapse-item title="高级配置" name="2">
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="9">
+                        <el-form-item label="终端类型" prop="pty_type">
+                          <el-select v-model="data.pty_type" placeholder="请选择终端类型" style="width: 100%;">
+                            <el-option label="xterm-256color" value="xterm-256color" />
+                            <el-option label="linux" value="linux" />
+                            <el-option label="xtrem" value="xtrem" />
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="5">
+                        <el-form-item label="字体颜色" prop="foreground">
+                          <el-color-picker v-model="data.foreground"></el-color-picker>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="5">
+                        <el-form-item label="背景颜色" prop="background">
+                          <el-color-picker v-model="data.background"></el-color-picker>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="5">
+                        <el-form-item label="光标颜色" prop="cursor_color">
+                          <el-color-picker v-model="data.cursor_color"></el-color-picker>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row :gutter="10">
+                      <el-col :xs="24" :sm="9">
+                        <el-form-item label="字体">
+                          <el-select v-model="data.font_family" placeholder="请选择字体" style="width: 100%;">
+                            <el-option label="Courier" value="Courier" />
+                            <el-option label="Courier New" value="Courier New" />
+                            <el-option label="Menlo" value="Menlo" />
+                            <el-option label="Monaco" value="Monaco" />
+                            <el-option label="monospace" value="monospace" />
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="5">
+                        <el-form-item label="字体大小">
+                          <el-select v-model.number="data.font_size" placeholder="请选择字体大小" style="width: 100%;">
+                            <el-option v-for="n in [8, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34]" :key="n" :label="n"
+                              :value="n"></el-option>
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :xs="24" :sm="4">
+                        <el-form-item label="光标样式">
+                          <el-select v-model="data.cursor_style" placeholder="请选择光标样式" style="width: 100%;">
+                            <el-option label="块状" value="block" />
+                            <el-option label="下划线" value="underline" />
+                            <el-option label="竖线" value="bar" />
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row>
+                      <el-col :xs="24">
+                        <el-form-item label="连接命令">
+                          <el-input v-model="data.init_cmd" type="textarea" :rows="2" placeholder="请输入连接后执行命令"
+                            style="width: 100%;" />
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+
+                    <el-row>
+                      <el-col :xs="24">
+                        <el-form-item label="连接横幅">
+                          <el-input v-model="data.init_banner" type="textarea" :rows="2" placeholder="请输入连接后提示横幅"
+                            style="width: 100%;" />
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                  </el-collapse-item>
+                </el-collapse>
+              </el-form>
+
+              <template #footer>
+                <span class="dialog-footer">
+                  <el-button style="margin-top: 10px;" @click="data.host_dialog_visible = false">取消</el-button>
+                  <el-button style="margin-top: 10px;" type="success" @click="connect">连接</el-button>
+                </span>
+                <div style="width: 10px;display:inline-block"></div>
+                <span v-if="data.mode == 0" class="dialog-footer">
+                  <el-button style="margin-top: 10px;" type="primary" @click="createHost(false)">保存</el-button>
+                  <el-button style="margin-top: 10px;" type="primary" @click="createHost(true)">连接并保存</el-button>
+                </span>
+                <span v-if="data.mode == 1" class="dialog-footer">
+                  <el-button style="margin-top: 10px;" type="primary" @click="updateHost(false)">更新</el-button>
+                  <el-button style="margin-top: 10px;" type="primary" @click="updateHost(true)">连接并更新</el-button>
+                </span>
+              </template>
+            </el-dialog>
+
+            <!-- SSH文件上传下载弹窗 -->
+            <el-dialog
+              v-model="data.file_dialog_visible"
+              width="80%"
+              custom-class="modern-dialog file-dialog"
+              top="60px"
+            >
+              <template #header>
+                <span v-html="title"></span>
+              </template>
+
+              <el-button-group style="width:auto;display: flex; flex-wrap: nowrap;overflow-x: auto;">
+                <el-button v-for="(item, index) in data.dir_info.paths" :key="index"
+                  @click="listDir(item.dir, data.current_host)">{{ item.name }}</el-button>
               </el-button-group>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-dialog>
+              </br>
 
-      <!-- 管理 -->
-      <el-dialog title="系统管理" v-model="data.manage_dialog_visible" v-bind:fullscreen="true">
-        <Manage></Manage>
-      </el-dialog>
+              <el-form-item style="margin-top: 10px;">
+                <el-input v-model="data.sftp_current_dir" style="width: 100%;" placeholder="请输入路径" class="input-with-select">
+                  <template #append>
+                    <el-button-group style="color:blue">
+                      <el-button @click="listDir(data.sftp_current_dir, data.current_host)">进入</el-button>
+                      <el-button @click="uploadFile(data.sftp_current_dir)">上传</el-button>
+                      <el-button @click="createDir(data.sftp_current_dir, data.current_host)">创建目录</el-button>
+                      <el-button @click="listDir(data.sftp_current_dir, data.current_host)">刷新</el-button>
+                    </el-button-group>
+                  </template>
+                </el-input>
+              </el-form-item>
+              </br>
+
+              <el-row>
+                <el-col :span="24">
+                  <el-progress :percentage="data.sftp_upload_percentage" />
+                </el-col>
+              </el-row>
+
+              <el-table :data="data.dir_info.files" height="400" :show-overflow-tooltip="true">
+                <el-table-column prop="name" label="文件名" fixed="left" sortable>
+                  <template #default="scope">
+                    <el-button v-if="scope.row.type === 'f'" @click="downloadFile(scope.row)" type="primary" link
+                      :icon="Files" style="color: green">{{ scope.row.name }}</el-button>
+                    <el-button v-if="scope.row.type === 'd'" @click="listDir(scope.row.path, data.current_host)"
+                      type="primary" link :icon="FolderOpened">{{ scope.row.name }}</el-button>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="size" label="大小" width="100" sortable></el-table-column>
+                <el-table-column prop="mode" label="权限" width="100" sortable></el-table-column>
+                <el-table-column prop="mod_time" label="修改日期" width="180" sortable></el-table-column>
+                <el-table-column label="操作" width="180" fixed="right">
+                  <template #default="scope">
+                    <el-button-group>
+                      <el-button v-if="scope.row.type == 'f'" @click="downloadFile(scope.row)" type="success"
+                        :icon="Bottom">下载</el-button>
+                      <el-button v-else type="primary" :icon="Upload" @click="uploadFile(scope.row.path)">上传</el-button>
+                      <el-popconfirm confirmButtonText="删除" cancelButtonText="取消" icon="el-icon-info" iconColor="red"
+                        title="确定删除吗" @confirm="deleteFile(scope.row)">
+                        <template #reference>
+                          <el-button type="danger">删除</el-button>
+                        </template>
+                      </el-popconfirm>
+                    </el-button-group>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-dialog>
+
+            <!-- 管理 -->
+            <el-dialog title="系统管理" v-model="data.manage_dialog_visible" v-bind:fullscreen="true">
+              <Manage></Manage>
+            </el-dialog>
+          </div>
+    
+          
+
+    <!-- 主内容页 -->
+    <div v-if="data.host_tabs.length === 0"
+      style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3b82f6 100%);">
+      <Main></Main>
     </div>
 
-    <div v-if="data.host_tabs.length === 0">
-      <Empty></Empty>
-    </div>
+
     <div v-else>
       <el-tabs v-model="data.current_host.session_id" type="card" closable @tab-remove="removeTab"
         @tab-click="selectTab">
@@ -534,16 +566,32 @@
 
 <script setup lang="ts">
 import { useGlobalStore } from "@/stores/store";
-import { Bottom, CirclePlus, Coin, Edit, Files, FolderOpened, Lock, Menu, Sort, Star, SwitchButton, Upload } from "@element-plus/icons-vue";
+import {
+  ArrowDown,
+  ArrowUp,
+  Avatar,
+  Bottom,
+  CirclePlus,
+  CopyDocument,
+  Eleme,
+  Files,
+  FolderOpened,
+  Menu,
+  Sort,
+  Star,
+  SwitchButton,
+  Tools,
+  Upload
+} from "@element-plus/icons-vue";
 import { AttachAddon } from "@xterm/addon-attach";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import axios, { type AxiosProgressEvent } from "axios";
-import { ElMessage, ElNotification, ElPopover } from "element-plus";
+import { ElMessage, ElMessageBox, ElNotification, ElPopover } from "element-plus";
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import Empty from "./Empty.vue";
+import Main from "./Main.vue";
 const Manage = defineAsyncComponent(() => import('./Manage.vue'))
 
 
@@ -632,6 +680,7 @@ interface DirInfo {
 }
 
 let data = reactive({
+  navCollapsed: true,
   mode: Mode.create,
   id: 0,
   name: "",
@@ -666,7 +715,7 @@ let data = reactive({
   host_config_collapse: ['1'],
   host_dialog_visible: false,
   file_dialog_visible: false,
-  modify_devices_dialog_visible:false,
+  modify_devices_dialog_visible: false,
   modify_pwd_dialog_visible: false,
   manage_dialog_visible: false,
   dir_info: {} as DirInfo,
@@ -711,6 +760,97 @@ const filterHostTable = computed(() =>
       i.address.toLowerCase().includes(searchHost.value.toLowerCase())
   )
 )
+
+// 检查更新
+const chkingUpdate = ref(false);
+
+async function checkUpdate() {
+  if (chkingUpdate.value) return;
+
+  chkingUpdate.value = true;
+
+  try {
+    const ret = await axios.get<ResponseData>("/api/update/version");
+
+    if (ret.data.code !== 0) {
+      ElMessage.error(ret.data.msg || "检测更新失败");
+      return;
+    }
+
+    const info = ret.data.data;
+
+    if (!info.has_update) {
+      ElMessage.success(`已是最新版本：${info.current_version}`);
+      return;
+    }
+
+    await ElMessageBox.confirm(
+      `
+      当前版本：${info.current_version}
+      最新版本：${info.latest_version}
+      更新文件：${info.asset_name || "-"}
+      
+      确认现在更新吗？
+      `,
+      "发现新版本",
+      {
+        confirmButtonText: "确认更新",
+        cancelButtonText: "取消",
+        type: "warning",
+        dangerouslyUseHTMLString: false,
+      }
+    );
+
+    await runUpdate();
+  } catch (err: any) {
+    if (err === "cancel" || err === "close") {
+      ElMessage.info("已取消更新");
+      return;
+    }
+
+    console.log(err);
+    ElMessage.error("检测更新异常");
+  } finally {
+    chkingUpdate.value = false;
+  }
+}
+// 执行更新
+async function runUpdate() {
+  try {
+    const ret = await axios.post<ResponseData>("/api/update/run");
+
+    if (ret.data.code === 0) {
+      ElNotification({
+        title: "更新已开始",
+        type: "success",
+        duration: 8000,
+        message: ret.data.msg || "程序即将重启，请稍后刷新页面",
+      });
+    } else {
+      ElMessage.error(ret.data.msg || "启动更新失败");
+    }
+  } catch (err) {
+    console.log(err);
+    ElMessage.error("执行更新异常，可能程序正在重启");
+  }
+}
+
+/**
+ * 主机管理弹窗移动端适配
+ */
+const windowWidth = ref(window.innerWidth)
+
+const isMobile = computed(() => windowWidth.value <= 768)
+
+const tableHeight = computed(() => {
+  return isMobile.value
+    ? Math.max(window.innerHeight - 190, 300)
+    : 500
+})
+
+function updateWindowWidth() {
+  windowWidth.value = window.innerWidth
+}
 
 /**
  * 搜索命令收藏列表
@@ -1386,8 +1526,11 @@ function getHost(data: Host): Omit<Host, 'fit' | 'term' | 'ws' | 'is_close'> {
  * 连接已经保存过的主机
  */
 function connectHost(host: Host, isReconnect: boolean = false) {
-  // 关闭模态框
+  // 关闭新增/编辑主机弹窗
   data.host_dialog_visible = false;
+
+  // 关闭主机管理弹窗
+  data.modify_devices_dialog_visible = false;
 
   let requestUrl = "/api/ssh/create_session";
   // 如果重连,在url加上会话ID
@@ -1443,10 +1586,11 @@ function connectHost(host: Host, isReconnect: boolean = false) {
             return;
           }
 
-          connectTabElement.style.height = Math.floor(window.innerHeight - 70) + "px";
+          const headerHeight = data.navCollapsed ? 0 : 70;
+          connectTabElement.style.height = Math.floor(window.innerHeight - headerHeight) + "px";
           connHost.term.open(connectTabElement);
           connHost.fit.fit();
-          
+
           const c = connHost.term.cols > 40 ? connHost.term.cols : 40
           const r = connHost.term.rows > 40 ? connHost.term.rows : 40
 
@@ -1456,11 +1600,11 @@ function connectHost(host: Host, isReconnect: boolean = false) {
 
           let basePath = window.location.pathname.replace("/app/", "");
           if (import.meta.env.VITE_ROUTE_MODE === "WebHistory") {
-              if (import.meta.env.VITE_WEB_BASE_DIR) {
-                  basePath = `${import.meta.env.VITE_WEB_BASE_DIR}`;
-              } else {
-                  basePath = "";
-              }
+            if (import.meta.env.VITE_WEB_BASE_DIR) {
+              basePath = `${import.meta.env.VITE_WEB_BASE_DIR}`;
+            } else {
+              basePath = "";
+            }
           }
 
           let webSockerUrl = `${headPart}${basePath}${tailPart}`;
@@ -1608,7 +1752,8 @@ function windowResize() {
       console.log("调整窗口大小,没有获取到dom");
       return;
     }
-    (connectTabElement as HTMLElement).style.height = Math.floor(window.innerHeight - 70) + "px";
+    const headerHeight = data.navCollapsed ? 0 : 70;
+    (connectTabElement as HTMLElement).style.height = Math.floor(window.innerHeight - headerHeight) + "px";
 
     currentHost.fit.fit();
     //if (data.h !== currentHost.term.rows || data.w !== currentHost.term.cols) {
@@ -1744,11 +1889,13 @@ onMounted(() => {
   getAllHost();
   getAllCmdNote();
   window.addEventListener("resize", debounce(windowResize, 200));
+  window.addEventListener("resize", updateWindowWidth);
   windowResize();
   window.onbeforeunload = function () {
     return "关闭吗";
   };
 });
+
 
 /**
  * 销毁前执行
@@ -1756,6 +1903,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(statusSetInterval);
   disconnectAllSession();
+  window.removeEventListener("resize", updateWindowWidth);
   window.onbeforeunload = null;
 })
 
@@ -1771,48 +1919,287 @@ const terminalBackground = computed(() => {
 
 
 <style scoped>
-.nav{
-  display: flex;
+.top-nav-header {
+  position: relative;
+  height: fit-content;
+  padding: 8px 12px 10px;
+  background:#315697;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(14px);
+  overflow: visible;
+  z-index: 2000;
 }
-@media (max-width: 620px) {
-  .nav .right{
+
+.nav {
+  display: flex;
+  align-items: center;
+}
+
+.nav :deep(.el-button) {
+  border: none;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: none;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.nav :deep(.el-button:hover) {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+
+.el-button-group {
+  display: flex;
+  max-width: 100%; /* 防止超出屏幕 */
+}
+
+.nav :deep(.el-button-group) {
+  display: flex;
+  gap: 10px;
+}
+
+.nav :deep(.el-button-group > .el-button:not(:first-child)) {
+  margin-left: 0;
+}
+
+.nav-anchor-toggle {
+  position: absolute;
+  left: 50%;
+  width: 45px;
+  height: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-top: none;
+  border-radius: 0 0 20px 20px;
+  transform: translateX(-50%);
+  background: #315697;
+  color: #e2e0e0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(16px);
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .top-nav-header {
+    background: #263144;
+  }
+  .nav-anchor-toggle {
+    background: #263144;
+  }
+  
+}
+.nav-anchor-toggle-open {
+  top: 50px;
+}
+
+.nav-anchor-icon {
+  width: 25px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-anchor-toggle .el-icon {
+  font-size: 15px;
+}
+
+:deep(.modern-dialog) {
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(248, 250, 252, 0.96);
+  box-shadow:
+    0 24px 70px rgba(15, 23, 42, 0.28),
+    0 0 0 1px rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+:deep(.modern-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 22px 14px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(59, 130, 246, 0.04)),
+    rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:deep(.modern-dialog .el-dialog__title) {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+
+:deep(.modern-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+:deep(.modern-dialog .el-dialog__headerbtn:hover) {
+  background: rgba(15, 23, 42, 0.08);
+  transform: rotate(90deg);
+}
+
+:deep(.modern-dialog .el-dialog__body) {
+  padding: 18px 22px;
+  color: #334155;
+}
+
+:deep(.modern-dialog .el-dialog__footer) {
+  padding: 14px 22px 20px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(248, 250, 252, 0.72);
+}
+
+:deep(.modern-dialog .el-input__wrapper),
+:deep(.modern-dialog .el-textarea__inner),
+:deep(.modern-dialog .el-select__wrapper),
+:deep(.modern-dialog .el-input-number .el-input__wrapper) {
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.22) inset;
+  background: rgba(255, 255, 255, 0.88);
+  transition:
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+:deep(.modern-dialog .el-input__wrapper:hover),
+:deep(.modern-dialog .el-textarea__inner:hover),
+:deep(.modern-dialog .el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.42) inset;
+}
+
+:deep(.modern-dialog .el-input__wrapper.is-focus),
+:deep(.modern-dialog .el-select__wrapper.is-focused) {
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.75) inset,
+    0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+:deep(.modern-dialog .el-form-item__label) {
+  color: #475569;
+  font-weight: 600;
+}
+:deep(.modern-dialog .el-table) {
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.14);
+}
+
+:deep(.modern-dialog .el-table th.el-table__cell) {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+}
+
+:deep(.modern-dialog .el-table td.el-table__cell) {
+  border-bottom-color: rgba(226, 232, 240, 0.9);
+}
+
+:deep(.modern-dialog .el-table__row:hover > td.el-table__cell) {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+:deep(.modern-dialog .el-table__inner-wrapper::before) {
+  display: none;
+}
+:deep(.modern-dialog .el-collapse) {
+  border: none;
+}
+
+:deep(.modern-dialog .el-collapse-item) {
+  margin-bottom: 14px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.16);
+}
+
+:deep(.modern-dialog .el-collapse-item__header) {
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(255, 255, 255, 0.7));
+  color: #0f172a;
+  font-weight: 700;
+}
+
+:deep(.modern-dialog .el-collapse-item__wrap) {
+  border-bottom: none;
+  background: transparent;
+}
+
+:deep(.modern-dialog .el-collapse-item__content) {
+  padding: 18px 16px 4px;
+}
+:deep(.modern-dialog .el-button) {
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+:deep(.modern-dialog .el-button--primary) {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+}
+
+:deep(.modern-dialog .el-button--success) {
+  background: linear-gradient(135deg, #059669, #10b981);
+  border: none;
+}
+
+:deep(.modern-dialog .el-button--danger) {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  border: none;
+}
+
+:deep(.modern-dialog .el-button:hover) {
+  transform: translateY(-1px);
+}
+@media (max-width: 768px) {
+  .nav .right {
     text-align: left !important;
   }
-}
-.file-dialog {
-  margin-top: 0px;
-}
 
-:deep(.el-tabs__header.is-top) {
-  margin: 0;
-  border-bottom: none;
-}
+  :deep(.modern-dialog) {
+    border-radius: 0;
+  }
 
-/* 优化 tabs 整体布局 */
-:deep(.el-tabs) {
-  height: calc(100vh - 32px);
-}
+  :deep(.modern-dialog .el-dialog__body) {
+    padding: 14px;
+  }
 
-:deep(.el-tabs__content) {
-  flex: 1;
-  margin-top: 1px;
-  overflow: hidden;
-}
+  :deep(.modern-dialog .el-dialog__footer) {
+    padding: 12px 14px 16px;
+  }
 
-:deep(.el-tab-pane) {
-  height: 100%;
-}
+  .nav :deep(.el-button-group) {
+    display: flex;
+    gap: 6px;
+  }
+  .el-button {
+    font-size: 10px;
+    padding: 0px 11px;
+  }
 
-/* 确保终端容器填充剩余空间 */
-:deep(.el-tab-pane > div) {
-  height: 100%;
 }
-
-/* 动态背景色样式 */
-:deep(.el-tabs__content),
-:deep(.el-tab-pane),
-:deep(.el-tab-pane > div > #term-data) {
-  background-color: v-bind('terminalBackground');
-}
-
 </style>

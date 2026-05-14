@@ -1,5 +1,6 @@
 <template>
   <div class="page">
+    <div class="child">
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="title-section">
@@ -18,21 +19,19 @@
         <div style="display: flex; gap: 10px">
 
           <div style="display: flex; position: relative">
-            <span class="uptime-label">{{ netWorkProvider }}</span>
+            <span class="uptime-label">{{ netWorkProvider }} {{ networkType }}{{ is5GA ? 'A' : '' }}</span>
+
           </div>
 
-          <div style="display: flex; position: relative">
-            <div class="signal-bars">
+          <!-- <div style="display: flex; position: relative"> -->
+            <!-- <div class="signal-bars">
               <div
                 v-for="n in 5"
                 :key="n"
                 :class="['bar full-bar', { active: n <= signalBars }]"></div>
-            </div>
-            <span
-              style="position: absolute; font-size: 12px; top: -7px; left: -1px"
-              >{{ networkType }}{{ is5GA ? 'A' : '' }}</span
-            >
-          </div>
+            </div> -->
+            <!-- <span>{{ networkType }}{{ is5GA ? 'A' : '' }}</span> -->
+          <!-- </div> -->
 
           <div style="display: flex; align-items: center">
             <div
@@ -57,76 +56,47 @@
           </div>
         </div>
 
-        <div class="auto-refresh-controls">
-          <button class="btn btn-primary" @click="refresh">刷新</button>
-          快<select
-            v-model="refreshInterval"
-            @change="updateRefreshInterval"
-            :disabled="!autoRefresh">
-            <option value="1000">1秒</option>
-            <option value="2000">2秒</option>
-            <option value="5000">5秒</option>
-            <option value="10000">10秒</option>
-          </select>
-          慢<select
-              v-model="refreshInterval2"
-              @change="updateRefreshInterval"
-              :disabled="!autoRefresh">
-            <option value="5000">5秒</option>
-            <option value="1000">1秒</option>
-            <option value="2000">2秒</option>
-            <option value="10000">10秒</option>
-          </select>
-          <label class="checkbox-label">
-            <input
-              type="checkbox"
-              v-model="autoRefresh"
-              @change="toggleAutoRefresh" />
-            <span class="checkmark"></span>
-            自动
-          </label>
+        <div class="auto-refresh-controls" style="display: flex;align-items: center;gap: 10px;flex-wrap: wrap;">
+          <button
+            class="btn btn-primary":class="autoRefresh ? 'btn-success' : 'btn-secondary'"
+            @click="toggleAutoRefresh"
+          >
+            {{ autoRefresh ? '停止刷新' : '开始刷新' }}
+          </button>
+
+          <div v-if="! sysVersion?.wa_inner_version?.includes('B28')" class="auto-refresh-controls">
+            <div v-if="usbStatus?.mode == 'user'">
+                <button
+                    class="btn btn-primary"
+                    @click="oneClickDebug"
+                    >开启ADB</button>
+            </div>
+
+            <div v-if="usbStatus?.mode == 'debug'">
+                <button
+                    class="btn btn-primary"
+                    @click="oneClickDebugClose"
+                    >关闭ADB</button>
+            </div>
+        
+          </div>
         </div>
-        <div class="auto-refresh-controls">
-          <button
-            class="btn btn-primary"
-            @click="oneClickDebug"
-            >一键ADB</button
-          >
-          <button
-            class="btn btn-primary"
-            @click="oneClickDebugClose"
-            >关闭ADB</button
-          >
-          <!--
-          <button
-            class="btn btn-primary"
-            @click="smsForwardHandler"
-            >短信转发</button
-          >
-           -->
-        </div>
-        <div class="auto-refresh-controls">
+
+        <div class="auto-refresh-controls" style="display: flex;align-items: center;gap: 5px;flex-wrap: wrap;">
           WiFi:<span :class="wifiInfo.highPerformance ? 'hp' : 'psm'">{{ wifiModeText }}</span>
           <button style="margin-left: 1px;" class="btn" :class="wifiInfo.highPerformance ? 'btn-primary' : 'btn-primary'"
                   @click="psmSetHandler(!wifiInfo.highPerformance)" >
             {{ wifiButtonText }}
           </button>
         </div>
-        <div class="auto-refresh-controls">
-          2.4G-WIFI:{{wifiInfo.wifiStatus24?'开':'关'}}
+        <div v-if="wifiStatus?.main2g_ssid !== wifiStatus?.main5g_ssid" class="auto-refresh-controls" style="display: flex;align-items: center;gap: 10px;flex-wrap: wrap;">
+          2.4G-WIFI: {{wifiInfo.wifiStatus24?'开':'关'}}
           <button style="margin-left: 1px;" class="btn" :class="wifiInfo.wifiStatus24 ? 'btn-primary' : 'btn-primary'"
                   @click="wifiStateSetHandler('wlan0',!wifiInfo.wifiStatus24)">{{wifiInfo.wifiStatus24?'关闭':'开启'}}</button>
-          5G-WIFI:{{wifiInfo.wifiStatus5?'开':'关'}}
+          5G-WIFI: {{wifiInfo.wifiStatus5?'开':'关'}}
           <button style="margin-left: 1px;" class="btn" :class="wifiInfo.wifiStatus5 ? 'btn-primary' : 'btn-primary'"
                   @click="wifiStateSetHandler('wlan2',!wifiInfo.wifiStatus5)">{{wifiInfo.wifiStatus5?'关闭':'开启'}}</button>
         </div>
-
-        <div class="auto-refresh-controls">
-          QCI: {{ netAmbr.qci2 || netAmbr.qci1 }}
-          ⬇️ {{ netAmbr.dl.value }} {{ netAmbr.dl.unit }}
-          ⬆️ {{ netAmbr.ul.value }} {{ netAmbr.ul.unit }}
-        </div>
-        
       </div>
     </div>
 
@@ -146,487 +116,529 @@
 
     <!-- 数据展示 -->
     <div v-else-if="dataReady" class="content">
+      <div class="top-cards">
+        <!-- NR 5G 信号卡片 -->
+        <div class="card" v-if="networkType === '5G'">
+          <div class="card-header">
+            <h3 class="hd">
+              <img style="width: 24px" :src="NetworkIcon" alt="" />NR 5G 信号
+            </h3>
+            <div class="card-tags">
+              <span class="tag success">已激活</span>
+              <span :class="['tag', getNetworkSignalStatus('nr').className]">
+                信号{{ getNetworkSignalStatus('nr').text }}
+              </span>
+            </div>
+          </div>
+          <div class="card-content">
+            <div class="signal-grid">
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSRP</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('nr', 'rsrp')"
+                      @click="toggleSignalHelp('nr', 'rsrp')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).className]">
+                    {{ getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).className"
+                    :style="{ width: getRsrpPercent(d.nr5g_rsrp) + '%' }"></div>
+                  <span class="progress-text">{{ formatDbm(d.nr5g_rsrp) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('nr', 'rsrp')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rsrp.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rsrp.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rsrp.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSRQ</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('nr', 'rsrq')"
+                      @click="toggleSignalHelp('nr', 'rsrq')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).className]">
+                    {{ getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).className"
+                    :style="{ width: getRsrqPercent(d.nr5g_rsrq) + '%' }"></div>
+                  <span class="progress-text">{{ formatDb(d.nr5g_rsrq) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('nr', 'rsrq')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rsrq.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rsrq.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rsrq.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">SINR</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('nr', 'sinr')"
+                      @click="toggleSignalHelp('nr', 'sinr')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).className]">
+                    {{ getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).className"
+                    :style="{ width: getSnrPercent(d.nr5g_snr) + '%' }"></div>
+                  <span class="progress-text">{{ formatSnr(d.nr5g_snr) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('nr', 'sinr')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.sinr.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.sinr.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.sinr.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSSI</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('nr', 'rssi')"
+                      @click="toggleSignalHelp('nr', 'rssi')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).className]">
+                    {{ getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).className"
+                    :style="{ width: getRssiPercent(d.nr5g_rssi) + '%' }"></div>
+                  <span class="progress-text">{{ formatDbm(d.nr5g_rssi) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('nr', 'rssi')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rssi.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rssi.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rssi.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <span class="label">PCI</span>
+                <span class="value">{{ d.nr5g_pci ?? '-' }}</span>
+              </div>
 
-      <!-- NR 5G 载波 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="hd">
-            <img style="width: 24px" :src="NetworkIcon" alt="" />5G 载波信息
-          </h3>
-          <span v-if="networkType != '5G'" class="tag warning">未激活</span>
-          <span v-else class="tag success">
-            {{ networkType }}{{ is5GA ? 'A' : '' }}
+              <div class="signal-item" width="100%">
+                <span class="label">Cell ID</span>
+                <span class="value">{{ d.nr5g_cell_id ?? '-' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-            ({{ d.nr5g_action_band?.toUpperCase() ?? '-' }}{{
-                formatNrca(d.nrca,'',0,3) != '-' ? ', N' + formatNrca(d.nrca,'',0,3) : '' }}{{
-                formatNrca(d.nrca,'',1,3) != '-' ? ', N' + formatNrca(d.nrca,'',1,3) : '' }})
+        <!-- NR 5G 载波 -->
+        <div class="card"  v-if="networkType === '5G'">
+          <div class="card-header">
+            <h3 class="hd">
+              <img style="width: 24px" :src="NetworkIcon" alt="" />5G 载波信息
+            </h3>
+            <span class="tag success">
+              {{ networkType }}{{ is5GA ? 'A' : '' }}
+
+              ({{ d.nr5g_action_band?.toUpperCase() ?? '-' }}{{
+                  formatNrca(d.nrca,'',0,3) != '-' ? ', N' + formatNrca(d.nrca,'',0,3) : '' }}{{
+                  formatNrca(d.nrca,'',1,3) != '-' ? ', N' + formatNrca(d.nrca,'',1,3) : '' }})
+              </span>
+          </div>
+          <div class="card-content">
+            <div class="signal-grid">
+              <table class="mytable" width="100%">
+                <tr>
+                  <td width="13%"></td>
+                  <td width="9%">PCI</td>
+                  <td width="11%">频段</td>
+                  <td width="16%">频点</td>
+                  <td width="11%">带宽</td>
+                  <td width="10%">RSRP</td>
+                  <td width="10%">RSRQ</td>
+                  <td width="10%">SINR</td>
+                  <td width="10%">RSSI</td>
+                </tr>
+                <tr>
+                  <td>PCC</td>
+                  <td>{{ d.nr5g_pci ?? '-' }}</td>
+                  <td>{{ d.nr5g_action_band?.toUpperCase() ?? '-' }}</td>
+                  <td>{{ d.nr5g_action_channel ?? '-' }}</td>
+                  <td>{{ d.nr5g_bandwidth ? d.nr5g_bandwidth + 'MHz' : '-' }}</td>
+                  <td class="dbmstyle">{{ d.nr5g_rsrp }}</td>
+                  <td>{{ d.nr5g_rsrq }}</td>
+                  <td>{{ d.nr5g_snr }}</td>
+                  <td class="dbmstyle">{{ d.nr5g_rssi }}</td>
+                </tr>
+                <tr>
+                  <td>SCC0</td>
+                  <td>{{ formatNrca(d.nrca,'',0,1) }}</td>
+                  <td>{{ formatNrca(d.nrca,'N',0,3) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',0,4) }}</td>
+                  <td>
+                    {{
+                      formatNrca(d.nrca, '', 0, 5) != '-'
+                        ? formatNrca(d.nrca, '', 0, 5) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,7) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',0,8) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',0,9) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,10) }}</td>
+                </tr>
+                <tr>
+                  <td>SCC1</td>
+                  <td>{{ formatNrca(d.nrca,'',1,1) }}</td>
+                  <td>{{ formatNrca(d.nrca,'N',1,3) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',1,4) }}</td>
+                  <td>
+                    {{
+                      formatNrca(d.nrca, '', 1, 5) != '-'
+                        ? formatNrca(d.nrca, '', 1, 5) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,7) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',1,8) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',1,9) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,10) }}</td>
+                </tr>
+                <tr>
+                  <td>SCC2</td>
+                  <td>{{ formatNrca(d.nrca,'',2,1) }}</td>
+                  <td>{{ formatNrca(d.nrca,'N',2,3) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',2,4) }}</td>
+                  <td>
+                    {{
+                      formatNrca(d.nrca, '', 2, 5) != '-'
+                        ? formatNrca(d.nrca, '', 2, 5) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,7) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',2,8) }}</td>
+                  <td>{{ formatNrca(d.nrca,'',2,9) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,10) }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- LTE 4G 信号卡片 -->
+        <div class="card" v-if="networkType === '4G'">
+          <div class="card-header">
+            <h3 class="hd">
+              <img style="width: 24px" :src="NetworkIcon" alt="" />LTE 信号
+            </h3>
+            <div class="card-tags">
+              <span class="tag success">已激活</span>
+              <span :class="['tag', getNetworkSignalStatus('lte').className]">
+                信号{{ getNetworkSignalStatus('lte').text }}
+              </span>
+            </div>
+          </div>
+          <div class="card-content">
+            <div class="signal-grid">
+
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSRP</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('lte', 'rsrp')"
+                      @click="toggleSignalHelp('lte', 'rsrp')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).className]">
+                    {{ getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).className"
+                    :style="{ width: getRsrpPercent(d.lte_rsrp) + '%' }"></div>
+                  <span class="progress-text">{{ formatDbm(d.lte_rsrp) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('lte', 'rsrp')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rsrp.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rsrp.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rsrp.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSRQ</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('lte', 'rsrq')"
+                      @click="toggleSignalHelp('lte', 'rsrq')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).className]">
+                    {{ getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).className"
+                    :style="{ width: getRsrqPercent(d.lte_rsrq) + '%' }"></div>
+                  <span class="progress-text">{{ formatDb(d.lte_rsrq) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('lte', 'rsrq')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rsrq.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rsrq.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rsrq.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">SINR</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('lte', 'sinr')"
+                      @click="toggleSignalHelp('lte', 'sinr')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('lte', 'sinr', d.lte_snr).className]">
+                    {{ getSignalDisplayStatus('lte', 'sinr', d.lte_snr).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('lte', 'sinr', d.lte_snr).className"
+                    :style="{ width: getSnrPercent(d.lte_snr) + '%' }"></div>
+                  <span class="progress-text">{{ formatSnr(d.lte_snr) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('lte', 'sinr')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.sinr.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.sinr.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.sinr.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <div class="signal-label-row">
+                  <span class="signal-label-help">
+                    <span class="label">RSSI</span>
+                    <button
+                      type="button"
+                      class="signal-help-trigger"
+                      :aria-expanded="isSignalHelpOpen('lte', 'rssi')"
+                      @click="toggleSignalHelp('lte', 'rssi')">*</button>
+                  </span>
+                  <span :class="['signal-status', getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).className]">
+                    {{ getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).text }}
+                  </span>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :class="getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).className"
+                    :style="{ width: getRssiPercent(d.lte_rssi) + '%' }"></div>
+                  <span class="progress-text">{{ formatDbm(d.lte_rssi) }}</span>
+                </div>
+                <div v-if="isSignalHelpOpen('lte', 'rssi')" class="signal-help-panel">
+                  <div class="signal-help-title">{{ signalHelpMap.rssi.title }}</div>
+                  <div class="signal-help-desc">{{ signalHelpMap.rssi.description }}</div>
+                  <div class="signal-help-ranges">
+                    <div v-for="item in signalHelpMap.rssi.ranges" :key="item.label">
+                      <span :class="['signal-help-dot', item.className]"></span>
+                      <span>{{ item.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="signal-item">
+                <span class="label">PCI</span>
+                <span class="value">{{ d.lte_pci ?? '-' }}</span>
+              </div>
+              <div class="signal-item">
+                <span class="label">Cell ID</span>
+                <span class="value">{{ d.cell_id ?? '-' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LTE 4G 载波 -->
+        <div class="card" v-if="networkType === '4G'">
+          <div class="card-header">
+            <h3 class="hd">
+              <img style="width: 24px" :src="NetworkIcon" alt="" />4G 载波信息
+            </h3>
+            <span class="tag success">
+              {{ networkType }}{{ is5GA ? '+' : '' }}
+              ({{ formatNrca(d.lteca,'B',0,1) }}{{
+                  formatNrca(d.lteca,'',1,1) != '-' ? ', B' + formatNrca(d.lteca,'',1,1) : '' }}{{
+                  formatNrca(d.lteca,'',2,1) != '-' ? ', B' + formatNrca(d.lteca,'',2,1) : '' }}{{
+                  formatNrca(d.lteca,'',3,1) != '-' ? ', B' + formatNrca(d.lteca,'',3,1) : '' }})
             </span>
-        </div>
-        <div class="card-content">
-          <div class="signal-grid">
-            <table class="mytable" width="100%">
-              <tr>
-                <td width="13%"></td>
-                <td width="9%">PCI</td>
-                <td width="11%">5G<br/>频段</td>
-                <td width="16%">5G<br/>频点</td>
-                <td width="11%">DL<br/>带宽</td>
-                <td width="10%">RSRP</td>
-                <td width="10%">RSRQ</td>
-                <td width="10%">SINR</td>
-                <td width="10%">RSSI</td>
-              </tr>
-              <tr>
-                <td>PCC</td>
-                <td>{{ d.nr5g_pci ?? '-' }}</td>
-                <td>{{ d.nr5g_action_band?.toUpperCase() ?? '-' }}</td>
-                <td>{{ d.nr5g_action_channel ?? '-' }}</td>
-                <td>{{ d.nr5g_bandwidth ?? '-' }}</td>
-                <td class="dbmstyle">{{ d.nr5g_rsrp }}</td>
-                <td>{{ d.nr5g_rsrq }}</td>
-                <td>{{ d.nr5g_snr }}</td>
-                <td class="dbmstyle">{{ d.nr5g_rssi }}</td>
-              </tr>
-              <tr>
-                <td>SCC0</td>
-                <td>{{ formatNrca(d.nrca,'',0,1) }}</td>
-                <td>{{ formatNrca(d.nrca,'N',0,3) }}</td>
-                <td>{{ formatNrca(d.nrca,'',0,4) }}</td>
-                <td>{{ formatNrca(d.nrca,'',0,5) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,7) }}</td>
-                <td>{{ formatNrca(d.nrca,'',0,8) }}</td>
-                <td>{{ formatNrca(d.nrca,'',0,9) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,10) }}</td>
-              </tr>
-              <tr>
-                <td>SCC1</td>
-                <td>{{ formatNrca(d.nrca,'',1,1) }}</td>
-                <td>{{ formatNrca(d.nrca,'N',1,3) }}</td>
-                <td>{{ formatNrca(d.nrca,'',1,4) }}</td>
-                <td>{{ formatNrca(d.nrca,'',1,5) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,7) }}</td>
-                <td>{{ formatNrca(d.nrca,'',1,8) }}</td>
-                <td>{{ formatNrca(d.nrca,'',1,9) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,10) }}</td>
-              </tr>
-              <tr>
-                <td>SCC2</td>
-                <td>{{ formatNrca(d.nrca,'',2,1) }}</td>
-                <td>{{ formatNrca(d.nrca,'N',2,3) }}</td>
-                <td>{{ formatNrca(d.nrca,'',2,4) }}</td>
-                <td>{{ formatNrca(d.nrca,'',2,5) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,7) }}</td>
-                <td>{{ formatNrca(d.nrca,'',2,8) }}</td>
-                <td>{{ formatNrca(d.nrca,'',2,9) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,10) }}</td>
-              </tr>
-            </table>
           </div>
-        </div>
-      </div>
-
-      <!-- NR 4G 载波 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="hd">
-            <img style="width: 24px" :src="NetworkIcon" alt="" />4G 载波信息
-          </h3>
-          <span v-if="networkType != '4G'" class="tag warning">未激活</span>
-          <span v-else class="tag success">
-            {{ networkType }}{{ is5GA ? '+' : '' }}
-            ({{ formatNrca(d.lteca,'B',0,1) }}{{
-                formatNrca(d.lteca,'',1,1) != '-' ? ', B' + formatNrca(d.lteca,'',1,1) : '' }}{{
-                formatNrca(d.lteca,'',2,1) != '-' ? ', B' + formatNrca(d.lteca,'',2,1) : '' }}{{
-                formatNrca(d.lteca,'',3,1) != '-' ? ', B' + formatNrca(d.lteca,'',3,1) : '' }})
-          </span>
-        </div>
-        <div class="card-content">
-          <div class="signal-grid">
-            <table class="mytable" width="100%">
-              <tr>
-                <td width="13%"></td>
-                <td width="9%">PCI</td>
-                <td width="11%">4G<br/>频段</td>
-                <td width="16%">4G<br/>信道</td>
-                <td width="11%">DL<br/>带宽</td>
-                <td width="10%">RSRP</td>
-                <td width="10%">RSRQ</td>
-                <td width="10%">SINR</td>
-                <td width="10%">RSSI</td>
-              </tr>
-              <tr>
-                <td>PCC</td>
-                <td>{{ d.lte_pci ?? '-' }}</td>
-                <td>{{ formatNrca(d.lteca,'B',0,1) }}</td>
-                <td>{{ d.wan_active_channel ?? '-' }}</td>
-                <td>{{ formatNrca(d.lteca,'',0,4) }}</td>
-                <td class="dbmstyle">{{ d.lte_rsrp }}</td>
-                <td>{{ d.lte_rsrq }}</td>
-                <td>{{ d.lte_snr }}</td>
-                <td class="dbmstyle">{{ d.lte_rssi }}</td>
-              </tr>
-              <tr>
-                <td>SCC0</td>
-                <td>{{ formatNrca(d.lteca,'',1,0) }}</td>
-                <td>{{ formatNrca(d.lteca,'B',1,1) }}</td>
-                <td>{{ formatNrca(d.lteca,'',1,3) }}</td>
-                <td>{{ formatNrca(d.lteca,'',1,4) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,0) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',0,1) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',0,2) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,3) }}</td>
-              </tr>
-              <tr>
-                <td>SCC1</td>
-                <td>{{ formatNrca(d.lteca,'',2,0) }}</td>
-                <td>{{ formatNrca(d.lteca,'B',2,1) }}</td>
-                <td>{{ formatNrca(d.lteca,'',2,3) }}</td>
-                <td>{{ formatNrca(d.lteca,'',2,4) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,0) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',1,1) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',1,2) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,3) }}</td>
-              </tr>
-              <tr>
-                <td>SCC2</td>
-                <td>{{ formatNrca(d.lteca,'',3,0) }}</td>
-                <td>{{ formatNrca(d.lteca,'B',3,1) }}</td>
-                <td>{{ formatNrca(d.lteca,'',3,3) }}</td>
-                <td>{{ formatNrca(d.lteca,'',3,4) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,0) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',2,1) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',2,2) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,3) }}</td>
-              </tr>
-              <tr>
-                <td>SCC3</td>
-                <td>{{ formatNrca(d.lteca,'',4,0) }}</td>
-                <td>{{ formatNrca(d.lteca,'B',4,1) }}</td>
-                <td>{{ formatNrca(d.lteca,'',4,3) }}</td>
-                <td>{{ formatNrca(d.lteca,'',4,4) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,0) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',4,1) }}</td>
-                <td>{{ formatNrca(d.ltecasig,'',4,2) }}</td>
-                <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,3) }}</td>
-              </tr>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- NR 5G信号卡片 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="hd">
-            <img style="width: 24px" :src="NetworkIcon" alt="" />NR 5G 信号
-          </h3>
-          <div class="card-tags">
-            <span v-if="networkType != '5G'" class="tag warning">未激活</span>
-            <span v-else class="tag success">已激活</span>
-            <span :class="['tag', getNetworkSignalStatus('nr').className]">
-              信号{{ getNetworkSignalStatus('nr').text }}
-            </span>
-          </div>
-        </div>
-        <div class="card-content">
-          <div class="signal-grid">
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSRP</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('nr', 'rsrp')"
-                    @click="toggleSignalHelp('nr', 'rsrp')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).className]">
-                  {{ getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('nr', 'rsrp', d.nr5g_rsrp).className"
-                  :style="{ width: getRsrpPercent(d.nr5g_rsrp) + '%' }"></div>
-                <span class="progress-text">{{ formatDbm(d.nr5g_rsrp) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('nr', 'rsrp')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rsrp.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rsrp.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rsrp.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSRQ</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('nr', 'rsrq')"
-                    @click="toggleSignalHelp('nr', 'rsrq')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).className]">
-                  {{ getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('nr', 'rsrq', d.nr5g_rsrq).className"
-                  :style="{ width: getRsrqPercent(d.nr5g_rsrq) + '%' }"></div>
-                <span class="progress-text">{{ formatDb(d.nr5g_rsrq) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('nr', 'rsrq')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rsrq.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rsrq.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rsrq.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">SINR</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('nr', 'sinr')"
-                    @click="toggleSignalHelp('nr', 'sinr')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).className]">
-                  {{ getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('nr', 'sinr', d.nr5g_snr).className"
-                  :style="{ width: getSnrPercent(d.nr5g_snr) + '%' }"></div>
-                <span class="progress-text">{{ formatSnr(d.nr5g_snr) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('nr', 'sinr')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.sinr.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.sinr.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.sinr.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSSI</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('nr', 'rssi')"
-                    @click="toggleSignalHelp('nr', 'rssi')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).className]">
-                  {{ getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('nr', 'rssi', d.nr5g_rssi).className"
-                  :style="{ width: getRssiPercent(d.nr5g_rssi) + '%' }"></div>
-                <span class="progress-text">{{ formatDbm(d.nr5g_rssi) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('nr', 'rssi')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rssi.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rssi.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rssi.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <span class="label">PCI</span>
-              <span class="value">{{ d.nr5g_pci ?? '-' }}</span>
-            </div>
-
-            <div class="signal-item" width="100%">
-              <span class="label">Cell ID</span>
-              <span class="value">{{ d.nr5g_cell_id ?? '-' }}</span>
+          <div class="card-content">
+            <div class="signal-grid">
+              <table class="mytable" width="100%">
+                <tr>
+                  <td width="13%"></td>
+                  <td width="9%">PCI</td>
+                  <td width="11%">频段</td>
+                  <td width="16%">信道</td>
+                  <td width="11%">带宽</td>
+                  <td width="10%">RSRP</td>
+                  <td width="10%">RSRQ</td>
+                  <td width="10%">SINR</td>
+                  <td width="10%">RSSI</td>
+                </tr>
+                <tr>
+                  <td>PCC</td>
+                  <td>{{ d.lte_pci ?? '-' }}</td>
+                  <td>{{ formatNrca(d.lteca,'B',0,1) }}</td>
+                  <td>{{ d.wan_active_channel ?? '-' }}</td>
+                  <td>
+                    {{
+                      formatNrca(d.lteca, '', 0, 4) != '-'
+                        ? formatNrca(d.lteca, '', 0, 4) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ d.lte_rsrp }}</td>
+                  <td>{{ d.lte_rsrq }}</td>
+                  <td>{{ d.lte_snr }}</td>
+                  <td class="dbmstyle">{{ d.lte_rssi }}</td>
+                </tr>
+                <tr>
+                  <td>SCC0</td>
+                  <td>{{ formatNrca(d.lteca,'',1,0) }}</td>
+                  <td>{{ formatNrca(d.lteca,'B',1,1) }}</td>
+                  <td>{{ formatNrca(d.lteca,'',1,3) }}</td>
+                  <td>{{
+                      formatNrca(d.lteca, '', 1, 4) != '-'
+                        ? formatNrca(d.lteca, '', 1, 4) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,0) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',0,1) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',0,2) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,3) }}</td>
+                </tr>
+                <tr>
+                  <td>SCC1</td>
+                  <td>{{ formatNrca(d.lteca,'',2,0) }}</td>
+                  <td>{{ formatNrca(d.lteca,'B',2,1) }}</td>
+                  <td>{{ formatNrca(d.lteca,'',2,3) }}</td>
+                  <td>{{
+                      formatNrca(d.lteca, '', 2, 4) != '-'
+                        ? formatNrca(d.lteca, '', 2, 4) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,0) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',1,1) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',1,2) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,3) }}</td>
+                </tr>
+                <tr>
+                  <td>SCC2</td>
+                  <td>{{ formatNrca(d.lteca,'',3,0) }}</td>
+                  <td>{{ formatNrca(d.lteca,'B',3,1) }}</td>
+                  <td>{{ formatNrca(d.lteca,'',3,3) }}</td>
+                  <td>{{
+                      formatNrca(d.lteca, '', 3, 4) != '-'
+                        ? formatNrca(d.lteca, '', 3, 4) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,0) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',2,1) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',2,2) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,3) }}</td>
+                </tr>
+                <tr>
+                  <td>SCC3</td>
+                  <td>{{ formatNrca(d.lteca,'',4,0) }}</td>
+                  <td>{{ formatNrca(d.lteca,'B',4,1) }}</td>
+                  <td>{{ formatNrca(d.lteca,'',4,3) }}</td>
+                  <td>{{
+                      formatNrca(d.lteca, '', 4, 4) != '-'
+                        ? formatNrca(d.lteca, '', 4, 4) + 'MHz'
+                        : '-'
+                    }}
+                  </td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,0) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',4,1) }}</td>
+                  <td>{{ formatNrca(d.ltecasig,'',4,2) }}</td>
+                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,3) }}</td>
+                </tr>
+              </table>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- LTE信号卡片 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="hd">
-            <img style="width: 24px" :src="NetworkIcon" alt="" />LTE 信号
-          </h3>
-          <div class="card-tags">
-            <span v-if="networkType != '4G'" class="tag warning">未激活</span>
-            <span v-else class="tag success">已激活</span>
-            <span :class="['tag', getNetworkSignalStatus('lte').className]">
-              信号{{ getNetworkSignalStatus('lte').text }}
-            </span>
-          </div>
-        </div>
-        <div class="card-content">
-          <div class="signal-grid">
-
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSRP</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('lte', 'rsrp')"
-                    @click="toggleSignalHelp('lte', 'rsrp')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).className]">
-                  {{ getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('lte', 'rsrp', d.lte_rsrp).className"
-                  :style="{ width: getRsrpPercent(d.lte_rsrp) + '%' }"></div>
-                <span class="progress-text">{{ formatDbm(d.lte_rsrp) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('lte', 'rsrp')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rsrp.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rsrp.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rsrp.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSRQ</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('lte', 'rsrq')"
-                    @click="toggleSignalHelp('lte', 'rsrq')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).className]">
-                  {{ getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('lte', 'rsrq', d.lte_rsrq).className"
-                  :style="{ width: getRsrqPercent(d.lte_rsrq) + '%' }"></div>
-                <span class="progress-text">{{ formatDb(d.lte_rsrq) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('lte', 'rsrq')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rsrq.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rsrq.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rsrq.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">SINR</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('lte', 'sinr')"
-                    @click="toggleSignalHelp('lte', 'sinr')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('lte', 'sinr', d.lte_snr).className]">
-                  {{ getSignalDisplayStatus('lte', 'sinr', d.lte_snr).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('lte', 'sinr', d.lte_snr).className"
-                  :style="{ width: getSnrPercent(d.lte_snr) + '%' }"></div>
-                <span class="progress-text">{{ formatSnr(d.lte_snr) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('lte', 'sinr')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.sinr.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.sinr.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.sinr.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <div class="signal-label-row">
-                <span class="signal-label-help">
-                  <span class="label">RSSI</span>
-                  <button
-                    type="button"
-                    class="signal-help-trigger"
-                    :aria-expanded="isSignalHelpOpen('lte', 'rssi')"
-                    @click="toggleSignalHelp('lte', 'rssi')">*</button>
-                </span>
-                <span :class="['signal-status', getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).className]">
-                  {{ getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).text }}
-                </span>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :class="getSignalDisplayStatus('lte', 'rssi', d.lte_rssi).className"
-                  :style="{ width: getRssiPercent(d.lte_rssi) + '%' }"></div>
-                <span class="progress-text">{{ formatDbm(d.lte_rssi) }}</span>
-              </div>
-              <div v-if="isSignalHelpOpen('lte', 'rssi')" class="signal-help-panel">
-                <div class="signal-help-title">{{ signalHelpMap.rssi.title }}</div>
-                <div class="signal-help-desc">{{ signalHelpMap.rssi.description }}</div>
-                <div class="signal-help-ranges">
-                  <div v-for="item in signalHelpMap.rssi.ranges" :key="item.label">
-                    <span :class="['signal-help-dot', item.className]"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="signal-item">
-              <span class="label">PCI</span>
-              <span class="value">{{ d.lte_pci ?? '-' }}</span>
-            </div>
-            <div class="signal-item">
-              <span class="label">Cell ID</span>
-              <span class="value">{{ d.cell_id ?? '-' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       <!-- 设备信息卡片 -->
       <div class="card device-info-card">
@@ -637,84 +649,130 @@
         </div>
         <div class="card-content">
           <div class="device-stats">
+
             <div class="device-item">
-              <div class="device-label">CPU 温度</div>
-              <div class="temp-info">
-                <div class="temp-value">
-                  {{ formatCpuTemp(cpuTemp.cpuss_temp) }}
+              <div class="health-card cpu-health-card">
+                <div class="health-title">CPU 负载</div>
+
+                <div class="cpu-health-layout">
+                  <div class="cpu-pie-box">
+                    <div class="cpu-pie" :style="cpuPieStyle">
+                      <div class="cpu-pie-inner">
+                        <div class="cpu-pie-value">{{ totalCpuLoad.toFixed(0) }}%</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="cpu-core-grid">
+                    <div
+                      class="cpu-core-card"
+                      v-for="item in cpuCoreLoads"
+                      :key="item.name"
+                    >
+                      <div class="cpu-core-header">
+                        <!-- <span class="cpu-core-name">{{ item.name }}</span> -->
+                        <span class="cpu-core-value">{{ item.value.toFixed(0) }}%</span>
+                      </div>
+
+                      <div class="cpu-core-bar">
+                        <div
+                          class="cpu-core-fill"
+                          :style="{ width: item.value + '%' }"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="temp-bar">
-                  <div
-                    class="temp-fill"
-                    :style="{
-                      width: cpuTemp.cpuss_temp + '%',
-                    }"></div>
+              </div>
+            </div>
+
+
+            <div class="device-item">
+              <div class="health-card temp-health-card">
+                <div class="health-title">温度状态</div>
+
+                <div class="temp-gauges">
+                  <div class="temp-gauge">
+                    <div
+                      class="temp-ring"
+                      :class="getTempClass(cpuTemp.cpuss_temp)"
+                      :style="{ '--percent': getTempPercent(cpuTemp.cpuss_temp) + '%' }"
+                    >
+                      <div class="temp-ring-inner">
+                        <strong>{{ cpuTemp.cpuss_temp || '-' }}°</strong>
+                        <span>CPU</span>
+                      </div>
+                    </div>
+                    <div class="temp-state" :class="getTempClass(cpuTemp.cpuss_temp)">
+                      {{ getTempText(cpuTemp.cpuss_temp) }}
+                    </div>
+                  </div>
+
+                  <div class="temp-gauge">
+                    <div
+                      class="temp-ring"
+                      :class="getTempClass(Number(deviceInfo.bat_temperature))"
+                      :style="{ '--percent': getTempPercent(Number(deviceInfo.bat_temperature)) + '%' }"
+                    >
+                      <div class="temp-ring-inner">
+                        <strong>{{ deviceInfo.bat_temperature || '-' }}°</strong>
+                        <span>电池</span>
+                      </div>
+                    </div>
+                    <div
+                      class="temp-state"
+                      :class="getTempClass(Number(deviceInfo.bat_temperature))"
+                    >
+                      {{ getTempText(Number(deviceInfo.bat_temperature)) }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="device-item">
-              <div class="device-label">
-                电池温度<span
-                  v-if="!(deviceInfo?.hightemp_datalimit_status == '0')"
-                  style="color: orange"
-                  >（温度保护）</span
-                >
-              </div>
-              <div class="temp-info">
-                <div class="temp-value">
-                  {{ formatCpuTemp(deviceInfo.bat_temperature as any) }}
-                </div>
-                <div class="temp-bar">
-                  <div
-                    class="temp-fill"
-                    :style="{
-                      width: deviceInfo.bat_temperature + '%',
-                    }"></div>
-                </div>
-              </div>
-            </div>
+              <div class="health-card memory-health-card">
+                <div class="health-title">内存使用</div>
 
-            <div class="device-item">
-              <div class="device-label">内存使用</div>
-              <div class="memory-info">
-                <div class="memory-details">
-                  <span class="memory-used">{{
+                <div class="memory-big">
+                  {{
+                    formatMemoryPercent(
+                      ((deviceInfo.meminfo?.total as any) || 0) -
+                        ((deviceInfo.meminfo?.avaliable as any) || 0),
+                      (deviceInfo.meminfo?.total as any) || 1
+                    )
+                  }}%
+                </div>
+
+                <div class="memory-detail">
+                  {{
                     formatMemory(
                       ((deviceInfo.meminfo?.total || 0) as any) -
-                        ((deviceInfo.meminfo?.free as any) || 0)
+                        ((deviceInfo.meminfo?.avaliable as any) || 0)
                     )
-                  }}</span>
-                  <span class="memory-separator">/</span>
-                  <span class="memory-total">{{
-                    formatMemory((deviceInfo.meminfo?.total as any) || 0)
-                  }}</span>
+                  }}
+                  <span>/ {{ formatMemory((deviceInfo.meminfo?.total as any) || 0) }}</span>
                 </div>
-                <div class="memory-bar">
+
+                <div class="memory-stack">
                   <div
-                    class="memory-fill"
+                    class="memory-stack-fill"
                     :style="{
                       width:
                         formatMemoryPercent(
-                          (deviceInfo.meminfo?.total as any || 0) -
-                            (deviceInfo.meminfo?.free as any || 0),
-                          deviceInfo.meminfo?.total as any || 1
+                          ((deviceInfo.meminfo?.total as any) || 0) -
+                            ((deviceInfo.meminfo?.avaliable as any) || 0),
+                          (deviceInfo.meminfo?.total as any) || 1
                         ) + '%',
-                    }"></div>
-                  <span class="memory-text"
-                    >{{
-                      formatMemoryPercent(
-                        ((deviceInfo.meminfo?.total as any) || 0) -
-                          ((deviceInfo.meminfo?.free as any) || 0),
-                        (deviceInfo.meminfo?.total as any) || 1
-                      )
-                    }}%</span
-                  >
+                    }"
+                  ></div>
                 </div>
+
+                <div class="memory-caption">已用 / 总量</div>
               </div>
             </div>
 
-            <div class="device-item">
+            <!-- <div class="device-item">
               <div class="device-label">
                 CPU 负载
                 {{
@@ -768,7 +826,7 @@
                   >
                 </div>
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
       </div>
@@ -782,28 +840,33 @@
         </div>
         <div class="card-content">
           <div class="info-grid">
+            <div class="auto-refresh-controls info-item" style="align-items: normal;">
+              QCI: {{ netAmbr.qci2 || netAmbr.qci1 }}
+            </div>
+            <div class="auto-refresh-controls info-item" style="align-items: normal;">
+              ⬇️ {{ netAmbr.dl.value }} {{ formatSpeedUnit(netAmbr.dl.unit) }}
+              ⬆️ {{ netAmbr.ul.value }} {{ formatSpeedUnit(netAmbr.dl.unit) }}
+            </div>
             <div class="info-item">
               <span class="label">运营商</span>
-              <span class="value">{{
-                d.network_provider_fullname || d.network_provider || '-'
-              }}</span>
+              <span class="value">{{ netWorkProvider }}</span>
             </div>
             <div class="info-item">
               <span class="label">网络类型</span>
-              <span class="value">{{ d.network_type || '-' }}</span>
+              <span class="value">{{ networkType }}{{ is5GA ? 'A' : '' }}</span>
             </div>
-            <div class="info-item">
+            <!-- <div class="info-item">
               <span class="label">驻网状态</span>
               <span class="value">{{ d.simcard_roam || '-' }}</span>
-            </div>
-            <div class="info-item">
+            </div> -->
+            <!-- <div class="info-item">
               <span class="label">选择模式</span>
               <span class="value">{{ d.net_select_mode || '-' }}</span>
-            </div>
-            <div class="info-item">
+            </div> -->
+            <!-- <div class="info-item">
               <span class="label">选择策略</span>
               <span class="value">{{ d.net_select || '-' }}</span>
-            </div>
+            </div> -->
             <div class="info-item">
               <span class="label">信号强度</span>
               <div class="signal-bars">
@@ -816,10 +879,90 @@
             <div class="info-item">
               <span class="label">连接数量</span>
               <span class="value"
-                >有线：{{ lanUserList?.lan_num || '-' }} / 无线：{{
-                  lanUserList?.wireless_num || '-'
+                >有线：{{ lanUserList?.lan_num || '0' }} / 无线：{{
+                  lanUserList?.wireless_num || '0'
                 }}</span
               >
+            </div>
+            <div class="info-item">
+              <span class="label">主载波</span>
+              <span class="value">{{
+                d.wan_active_band?.toUpperCase() || '-'
+              }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">当前载波</span>
+              <span class="value"
+                >{{
+                  d.wan_active_band?.toUpperCase()
+                    ? d.wan_active_band.toUpperCase() + ', '
+                    : ''
+                }}{{ currentActiveBands || '-' }}</span
+              >
+            </div>
+            <div class="info-item">
+              <span class="label">频道</span>
+              <span class="value">{{ d.nr5g_action_channel ?? '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">带宽</span>
+              <span class="value">{{
+                d.nr5g_bandwidth ? d.nr5g_bandwidth + ' MHz' : '-'
+              }}</span>
+            </div>
+            <!-- <div class="info-item">
+              <span class="label">LTE 锁频</span>
+              <span class="value">{{ d.lte_band_lock || '-' }}</span>
+            </div> -->
+            <!-- <div class="info-item">
+              <span class="label">NR SA 锁频</span>
+              <span class="value">{{ d.nr5g_sa_band_lock || '-' }}</span>
+            </div> -->
+            <!-- <div class="info-item">
+              <span class="label">LTE 频段</span>
+              <span
+                class="value"
+                style="
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                  overflow: hidden;
+                "
+                >{{ d.lte_band || '-' }}</span
+              >
+            </div> -->
+            <div class="info-item">
+              <span class="label">ICCID</span>
+              <span class="value">{{ simInfo2.sim_iccid ?? '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">IMSI</span>
+              <span class="value">{{ simInfo2.sim_imsi ?? '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">IMEI</span>
+              <span class="value">{{ simInfo?.values?.imei ?? '-' }}</span>
+            </div>
+            <!-- <div class="info-item">
+              <span class="label">Lock Status</span>
+              <span class="value">{{
+                simInfo?.values?.lock_status ?? '-'
+              }}</span>
+            </div> -->
+            <div class="info-item">
+              <span class="label">Modem MSN</span>
+              <span class="value">{{ simInfo?.values?.modem_msn ?? '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">WLAN MAC</span>
+              <span class="value">{{
+                simInfo?.values?.wlan_mac_address ?? '-'
+              }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">系统版本</span>
+              <span class="value">{{
+                sysVersion?.wa_inner_version ?? '-'
+              }}</span>
             </div>
           </div>
         </div>
@@ -891,8 +1034,99 @@
         </div>
       </div>
 
-      <!-- 频段与锁定卡片 -->
+            <!-- 接口状态卡片 -->
       <div class="card">
+        <div class="card-header">
+          <h3 class="hd">
+            <img style="width: 24px" :src="InterfaceIcon" alt="" />接口状态
+          </h3>
+        </div>
+        <div class="card-content">
+          <div class="interface-grid">
+
+            <div class="interface-section" v-if="wwanInfo?.ipv4_address">
+              <h4>WAN IPv4</h4>
+              <div class="info-grid-compact">
+                <div class="info-item">
+                  <span class="label">IP 地址</span>
+                  <span class="value">{{ wwanInfo?.ipv4_address || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">网关</span>
+                  <span class="value">{{ wwanInfo?.ipv4_gateway || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">DNS 服务器</span>
+                  <span class="value">{{
+                    wanData['dns-server']?.join('\n') || '-'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">运行时间</span>
+                  <span class="value">{{ formatUptime(wanData.uptime) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="interface-section" v-if="wwanInfo?.ipv6_address !== '0'">
+              <h4>WAN IPv6</h4>
+              <div class="info-grid-compact">
+                <div class="info-item">
+                  <span class="label">IPv6 地址</span>
+                  <span class="value">{{ wwanInfo?.ipv6_address || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">网关</span>
+                  <span class="value">{{ wwanInfo?.ipv6_gateway || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">DNS 服务器</span>
+                  <span class="value">{{
+                    wan6Data['dns-server']?.join('\n') || '-'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">运行时间</span>
+                  <span class="value">{{ formatUptime(wan6Data.uptime) }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="interface-section" v-if="lanData?.ipv4_address">
+              <h4>LAN 接口</h4>
+              <div class="info-grid-compact">
+                <div class="info-item">
+                  <span class="label">IP 地址</span>
+                  <span class="value">{{
+                    lanData.ipv4_address?.[0]?.address || '-'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">网关</span>
+                  <span class="value">{{
+                    lanData.route?.[0]?.nexthop || '-'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">DNS 服务器</span>
+                  <span class="value">{{
+                    lanData['dns-server']?.join('\n') || '-'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">运行时间</span>
+                  <span class="value">{{ formatUptime(lanData.uptime) }}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      
+      <!-- 频段与锁定卡片 -->
+      <!-- <div class="card">
         <div class="card-header">
           <h3 class="hd">
             <img style="width: 24px" :src="LockIcon" alt="" />频段与锁定
@@ -948,98 +1182,10 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- 网络接口状态卡片 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="hd">
-            <img style="width: 24px" :src="InterfaceIcon" alt="" />网络接口状态
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="interface-grid">
-            <div class="interface-section">
-              <h4>LAN 接口</h4>
-              <div class="info-grid-compact">
-                <div class="info-item">
-                  <span class="label">IP 地址</span>
-                  <span class="value">{{
-                    lanData.ipv4_address?.[0]?.address || '-'
-                  }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">网关</span>
-                  <span class="value">{{
-                    lanData.route?.[0]?.nexthop || '-'
-                  }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">DNS 服务器</span>
-                  <span class="value">{{
-                    lanData['dns-server']?.join(', ') || '-'
-                  }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">运行时间</span>
-                  <span class="value">{{ formatUptime(lanData.uptime) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="interface-section">
-              <h4>WAN IPv4 接口</h4>
-              <div class="info-grid-compact">
-                <div class="info-item">
-                  <span class="label">IP 地址</span>
-                  <span class="value">{{ wwanInfo?.ipv4_address || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">网关</span>
-                  <span class="value">{{ wwanInfo?.ipv4_gateway || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">DNS 服务器</span>
-                  <span class="value">{{
-                    wanData['dns-server']?.join(', ') || '-'
-                  }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">运行时间</span>
-                  <span class="value">{{ formatUptime(wanData.uptime) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="interface-section">
-              <h4>WAN IPv6 接口</h4>
-              <div class="info-grid-compact">
-                <div class="info-item">
-                  <span class="label">IPv6 地址</span>
-                  <span class="value">{{ wwanInfo?.ipv6_address || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">网关</span>
-                  <span class="value">{{ wwanInfo?.ipv6_gateway || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">DNS 服务器</span>
-                  <span class="value">{{
-                    wan6Data['dns-server']?.join(', ') || '-'
-                  }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">运行时间</span>
-                  <span class="value">{{ formatUptime(wan6Data.uptime) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      </div> -->
 
       <!-- 标识信息卡片 -->
-      <div class="card">
+      <!-- <div class="card">
         <div class="card-header">
           <h3 class="hd">
             <img style="width: 24px" :src="TagIcon" alt="" />标识信息
@@ -1077,7 +1223,8 @@
             </div>
           </div>
         </div>
-      </div>
+      </div> -->
+
     </div>
 
     <!-- 空状态 -->
@@ -1085,6 +1232,7 @@
       <div class="empty-icon">📱</div>
       <h3>暂无数据</h3>
       <p>请点击刷新按钮获取设备信息</p>
+    </div>
     </div>
   </div>
 </template>
@@ -1100,6 +1248,7 @@ import TagIcon from '@/assets/svgs/tag.svg';
 
 import axios from 'axios';
 import { ElMessage, ElNotification } from 'element-plus';
+import { sys } from 'typescript';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 // interface UbusResponse<T = any> {
@@ -1273,10 +1422,56 @@ interface WifiInfo {
   highPerformance: boolean
 }
 const wifiInfo = ref<WifiInfo>({} as WifiInfo);
-const wifiModeText = computed(() => wifiInfo.value.highPerformance ? '高性能模式' : '省电模式')
-const wifiButtonText = computed(() => wifiInfo.value.highPerformance ? '切换为省电' : '切换为高性能')
+const wifiModeText = computed(() => wifiInfo.value.highPerformance ? '性能模式' : '省电模式')
+const wifiButtonText = computed(() => wifiInfo.value.highPerformance ? '切换为省电' : '切换高性能')
 
-// WiFi状态
+interface WifiStatus {
+  dfs_status: string,
+  lbd_enable: string,
+  load_status: string,
+  main2g_authmode: string,
+  main2g_ssid: string,
+  main5g_authmode: string,
+  main5g_ssid: string,
+  mesh_deployed: string,
+  mesh_deploying_status: string,
+  mesh_set_status: string,
+  mlo_enable: string,
+  radio2: string,
+  radio2_disabled: string,
+  radio5: string,
+  radio5_disabled: string,
+  wifi_onoff: string,
+  wifi_start_mode: string,
+}
+const wifiStatus = ref<WifiStatus>({} as WifiStatus);
+
+interface SysVersion {
+  ".anonymous": boolean,
+  ".type": string,
+  ".name": string,
+  manufacturer: string,
+  hardware_version: string,
+  wa_inner_version: string,
+  model_name: string,
+  integrate_version: string,
+  device_alias_name: string,
+  imei_sv: string,
+  device_market_name: string,
+}
+const sysVersion = ref<SysVersion>({} as SysVersion);
+
+// USB状态
+interface USBStatus {
+  connect: number,
+  mode: string,
+  typec_cc: string,
+  usb2rj45: number,
+}
+
+const usbStatus = ref<USBStatus>({} as USBStatus);
+
+// 连接状态
 interface NetAmbr {
   raw: string;
   dl: {
@@ -1311,6 +1506,8 @@ const netAmbr = ref<NetAmbr>({
   qci1: 0,
   qci2: 0
 });
+
+
 
 // 响应式数据
 const loading = ref(false);
@@ -1362,6 +1559,18 @@ const currentActiveBands = computed(() => {
     .replace(/,/g, ',');
   return res;
 });
+
+function formatSpeedUnit(unit?: string) {
+  if (!unit) return '';
+
+  const u = unit.toLowerCase();
+
+  if (u.includes('mbps')) return 'M';
+  if (u.includes('kbps')) return 'K';
+  if (u.includes('bps')) return 'B';
+
+  return unit;
+}
 
 const is5GA = computed(() => {
   if (!currentActiveBands.value) return false;
@@ -1621,35 +1830,18 @@ const lanUserListRequest = {
   ],
 }
 
-// 1.网络信息 => netInfoRequest
-// 2.LAN 状态 => lanRequest
-// 3.WAN IPv4 => wanRequest
-// 4.WAN IPv6 => wan6Request
-// 5.流量统计 => trafficRequest
-// 6.设备信息 => deviceInfoRequest
-// 7.CPU 温度 => cpuTempRequest
-// 8.SIM 信息（uci） => simInfoRequest
-// 9.SIM 信息 2 => simInfo2Request
-// 10.WWAN 接口信息 => wwanRequest
-// 11.LAN 用户数 => lanUserListRequest
-const batchRequests = [
-  netInfoRequest,
-  lanRequest,
-  wanRequest,
-  wan6Request,
-  trafficRequest,
-  // deviceInfoRequest,
-  cpuTempRequest,
-  simInfoRequest,
-  simInfo2Request,
-  // wwanRequest,
-  // lanUserListRequest,
-]
-const batchRequests2 = [
-  deviceInfoRequest,
-  wwanRequest,
-  lanUserListRequest
-]
+// wifi 状态
+const wifiStatusRequest = {
+  jsonrpc: '2.0',
+  id: 14,
+  method: 'call',
+  params: [
+    SESSION_ID,
+    'zwrt_wlan',
+    'report',
+    {},
+  ],
+}
 
 // 打开 ADB
 const openAdbRequest = {
@@ -1680,6 +1872,67 @@ const closeAdbRequest = {
     },
   ],
 }
+
+// 系统版本信息
+const sysVersionRequest = {
+  jsonrpc: '2.0',
+  id: 15,
+  method: 'call',
+  params: [
+    SESSION_ID,
+    'uci',
+    'get',
+    {
+      config: 'zwrt_common_info',
+      section: 'common_config',
+    },
+  ],
+};
+
+const usbStatusRequest = {
+  jsonrpc: '2.0',
+  id: 16,
+  method: 'call',
+  params: [
+    SESSION_ID,
+    'zwrt_bsp.usb',
+    'list',
+    {},
+  ],
+};
+
+// 1.网络信息 => netInfoRequest
+// 2.LAN 状态 => lanRequest
+// 3.WAN IPv4 => wanRequest
+// 4.WAN IPv6 => wan6Request
+// 5.流量统计 => trafficRequest
+// 6.设备信息 => deviceInfoRequest
+// 7.CPU 温度 => cpuTempRequest
+// 8.SIM 信息（uci） => simInfoRequest
+// 9.SIM 信息 2 => simInfo2Request
+// 10.WWAN 接口信息 => wwanRequest
+// 11.LAN 用户数 => lanUserListRequest
+const batchRequests = [
+  netInfoRequest,
+  lanRequest,
+  wanRequest,
+  wan6Request,
+  trafficRequest,
+  // deviceInfoRequest,
+  cpuTempRequest,
+  simInfoRequest,
+  simInfo2Request,
+  wifiStatusRequest,
+  sysVersionRequest,
+  usbStatusRequest,
+  // wwanRequest,
+  // lanUserListRequest,
+]
+const batchRequests2 = [
+  deviceInfoRequest,
+  wwanRequest,
+  lanUserListRequest
+]
 
 // 计算属性
 const dataReady = computed(() => !!data.value);
@@ -2166,6 +2419,9 @@ async function fetchAllData() {
     simInfo2.value    = resultMap[9]
     // wwanInfo.value    = resultMap[10]
     // lanUserList.value = resultMap[11]
+    wifiStatus.value = resultMap[14]
+    sysVersion.value = resultMap[15]['values']
+    usbStatus.value = resultMap[16]
   } catch (e: any) {
     error.value = e?.message || '请求失败'
     console.error('数据获取失败:', e)
@@ -2208,10 +2464,14 @@ function refresh() {
 }
 
 function toggleAutoRefresh() {
+  autoRefresh.value = !autoRefresh.value;
+
   if (autoRefresh.value) {
     startAutoRefresh();
+    ElMessage.success('已恢复刷新');
   } else {
     stopAutoRefresh();
+    ElMessage.warning('已停止刷新');
   }
 }
 
@@ -2245,9 +2505,13 @@ function stopAutoRefresh() {
 
 // 一键ADB调试
 function oneClickDebug() {
+  ElMessage.info('正在执行操作，请稍候...')
   callUbusBatch([openAdbRequest])
       .then((map) => {
-        ElMessage.success('已开启ADB调试模式')
+        // 一秒后执行刷新，确保后端状态更新
+        setTimeout(() => {
+            ElMessage.success('已关闭ADB调试模式')
+        }, 1500);
       })
       .catch((err) => {
         ElMessage.error('请求失败：' + (err?.message || '未知错误'))
@@ -2255,9 +2519,13 @@ function oneClickDebug() {
 }
 
 function oneClickDebugClose() {
+  ElMessage.info('正在执行操作，请稍候...')
   callUbusBatch([closeAdbRequest])
       .then((map) => {
-        ElMessage.success('已关闭ADB调试模式')
+        // 一秒后执行刷新，确保后端状态更新
+        setTimeout(() => {
+            ElMessage.success('已关闭ADB调试模式')
+        }, 1500);
       })
       .catch((err) => {
         ElMessage.error('请求失败：' + (err?.message || '未知错误'))
@@ -2324,7 +2592,61 @@ function wifiStateSetHandler(iface:string, val:boolean){
     ElMessage.success((iface == 'wlan0' ? '2.4G' : ((iface == 'wlan2' ? '5G' : '其他'))) + '-WiFi已' + (val ? '开启' : '关闭'));
   });
 }
+function clampPercent(value: number) {
+  if (Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
 
+const totalCpuLoad = computed(() => {
+  const idle = Number(deviceInfo.value.cpuinfo?.[0]?.idle ?? 100);
+  return clampPercent(100 - idle);
+});
+
+const cpuCoreLoads = computed(() => {
+  return [1, 2, 3, 4].map((index) => {
+    const idle = Number(deviceInfo.value.cpuinfo?.[index]?.idle ?? 100);
+    return {
+      name: `核心${index}`,
+      value: clampPercent(100 - idle),
+    };
+  });
+});
+
+const cpuPieStyle = computed(() => {
+  const load = totalCpuLoad.value;
+  return {
+    background: `conic-gradient(
+      #63e6be 0% ${load}%,
+      rgba(255,255,255,0.12) ${load}% 100%
+    )`,
+  };
+});
+
+function getTempPercent(temp: unknown): number {
+  const n = Number(temp);
+  if (Number.isNaN(n)) return 0;
+
+  // 假设 0~100℃ 映射成 0~100%
+  return Math.max(0, Math.min(100, n));
+}
+
+function getTempClass(temp: unknown): string {
+  const n = Number(temp);
+  if (Number.isNaN(n)) return 'normal';
+
+  if (n >= 70) return 'danger';
+  if (n >= 55) return 'warning';
+  return 'normal';
+}
+
+function getTempText(temp: unknown): string {
+  const n = Number(temp);
+  if (Number.isNaN(n)) return '-';
+
+  if (n >= 70) return '过热';
+  if (n >= 55) return '偏高';
+  return '正常';
+}
 
 onMounted(() => {
   fetchAllData();
@@ -2365,6 +2687,7 @@ onUnmounted(() => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
+
 
 .title-section {
   display: flex;
@@ -2604,6 +2927,7 @@ onUnmounted(() => {
 .content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  justify-content: center;
   gap: 24px;
   align-items: stretch; /* 卡片等高 */
 }
@@ -2676,14 +3000,25 @@ onUnmounted(() => {
 
 .device-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 20px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+  align-items: stretch;
 }
 
 .device-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.health-card {
+  position: relative;          /* 相对定位，避免被父元素限制 */
+  z-index: 1;                  /* 确保浮动在上层显示 */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.health-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
 .device-label {
@@ -2814,10 +3149,35 @@ onUnmounted(() => {
 }
 
 /* 信息网格 */
+/* 信息网格：默认双列 */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.info-item .label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item .value {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .info-item {
@@ -3313,10 +3673,6 @@ onUnmounted(() => {
     gap: 16px;
   }
 
-  .device-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .info-grid {
     grid-template-columns: 1fr;
   }
@@ -3334,7 +3690,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 1100px) {
   .page {
     padding: 8px;
   }
@@ -3354,6 +3710,258 @@ onUnmounted(() => {
   .traffic-value {
     font-size: 16px;
   }
+}
+
+.mytable{caption-side: bottom;}
+.mytable{border-collapse: collapse;}
+.mytable,tr,td{border: 1px solid rgb(59, 104, 141);font-size: 14px;text-align: center;}
+.dbmstyle{color: rgb(104, 211, 145)}
+
+.hp {
+  color: #d97706;
+  font-weight: 600;
+}
+.psm {
+  color: #059669;
+  font-weight: 600;
+}
+
+/* 表格手机端横向滚动 */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper .mytable {
+  min-width: 720px;
+  width: 100%;
+}
+
+/* 手机端仍然保持网络信息双列 */
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .info-item {
+    padding: 8px;
+    min-width: 0;
+  }
+
+  .info-item .label {
+    font-size: 11px;
+  }
+
+  .info-item .value {
+    font-size: 12px;
+    line-height: 1.35;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .card-content {
+    padding: 12px;
+  }
+}
+.child {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.top-cards {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.top-cards .card {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .top-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cpu-health-card {
+  min-width: 0;
+}
+
+.cpu-health-layout {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+}
+
+.cpu-pie-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cpu-pie {
+  width: 115px;
+  height: 115px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(0, 0, 0, 0.26);
+}
+
+.cpu-pie-inner {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #315697;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cpu-pie-value {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+}
+
+.cpu-pie-text {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.cpu-core-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cpu-core-card {
+  min-width: 0;
+  padding: 10px 12px;
+  padding-bottom: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cpu-core-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cpu-core-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.cpu-core-value {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.cpu-core-bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cpu-core-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4facfe 0%, #63e6be 100%);
+  transition: width 0.25s ease;
+}
+
+.health-card {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(99, 230, 190, 0.12), transparent 38%),
+    rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.health-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.68);
+  margin-bottom: 16px;
+}
+
+.temp-gauges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.temp-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.temp-ring {
+  --ring-color: #63e6be;
+
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    conic-gradient(
+      var(--ring-color) 0 var(--percent),
+      rgba(255, 255, 255, 0.13) var(--percent) 100%
+    );
+  transition: background 0.25s ease;
+}
+
+.temp-ring.normal {
+  --ring-color: #63e6be;
+}
+
+.temp-ring.warning {
+  --ring-color: #ffd166;
+}
+
+.temp-ring.danger {
+  --ring-color: #ff6b6b;
+}
+
+.temp-ring-inner {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: #315697;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 暗色模式支持 */
@@ -3389,23 +3997,109 @@ onUnmounted(() => {
     background: rgba(30, 41, 59, 0.5);
   }
 
+  .cpu-pie-inner {
+    background: #263144;
+  }
+
+  .temp-ring-inner {
+    background: #263144;
+  }
+
   .interface-section h4 {
     color: #f1f5f9;
     border-bottom-color: rgba(255, 255, 255, 0.1);
   }
 }
 
-.mytable{caption-side: bottom;}
-.mytable{border-collapse: collapse;}
-.mytable,tr,td{border: 1px solid rgb(59, 104, 141);font-size: 14px;text-align: center;}
-.dbmstyle{color: rgb(104, 211, 145)}
 
-.hp {
-  color: #d97706;
-  font-weight: 600;
+.temp-ring-inner strong {
+  font-size: 22px;
+  line-height: 1;
+  color: #fff;
 }
-.psm {
-  color: #059669;
-  font-weight: 600;
+
+.temp-ring-inner span {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+}
+
+.temp-state {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255,255,255,0.08);
+}
+
+.temp-state.normal {
+  color: #63e6be;
+  background: rgba(99, 230, 190, 0.14);
+}
+
+.temp-state.warning {
+  color: #ffd166;
+  background: rgba(255, 209, 102, 0.14);
+}
+
+.temp-state.danger {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.memory-health-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.memory-big {
+  font-size: 46px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.memory-detail {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.9);
+}
+
+.memory-detail span {
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+}
+
+.memory-stack {
+  margin-top: 18px;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.12);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+
+.memory-stack-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #63e6be 0%, #4facfe 100%);
+}
+
+.memory-caption {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.48);
+}
+
+@media (max-width: 100px) {
+  .cpu-health-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cpu-core-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
