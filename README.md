@@ -33,6 +33,7 @@ npm run build 执行之后移动编译产物到后端 webroot 文件夹，一条
 * upx --best --lzma webssh
 
 * 一条命令完成（VERSION 自行修改）
+
 npm run build \
 && mkdir -p ../gossh/webroot \
 && rsync -a --delete dist/ ../gossh/webroot/ \
