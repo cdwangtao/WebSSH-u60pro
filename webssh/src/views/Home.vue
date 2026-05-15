@@ -1645,6 +1645,20 @@ function connectHost(host: Host, isReconnect: boolean = false) {
             }
           }
 
+          connHost.term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+            if (event.type === "keydown" && event.ctrlKey && event.key.toLowerCase() === "c") {
+              if (connHost.term.hasSelection()) {
+                return true;
+              }
+              if (ws.readyState === WebSocket.OPEN) {
+                // 无选区时 Ctrl+C 应发送 ETX，让远端 PTY 触发 SIGINT。
+                ws.send("\x03");
+              }
+              return false;
+            }
+            return true;
+          });
+
           connHost.term.loadAddon(new AttachAddon(ws));
           connHost.ws = ws;
           connHost.is_close = false;
