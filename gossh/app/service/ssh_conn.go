@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"gossh/app/model"
@@ -359,6 +360,9 @@ func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
 				}
 				continue
 			}
+		}
+		if bytes.Contains(message, []byte{0x03}) && w.signalFunc != nil {
+			w.signalFunc("SIGINT", "top")
 		}
 		copy(p, message)
 		return len(message), nil
