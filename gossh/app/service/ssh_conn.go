@@ -175,7 +175,7 @@ func (s *SshConn) RunTerminal(shell string, stdout, stderr io.Writer, stdin io.R
 		return err
 	}
 
-	if err = s.sshSession.Start(buildRemoteShellCommand(shell, s.remoteTTYFile)); err != nil {
+	if err = s.sshSession.Shell(); err != nil {
 		slog.Error("sshSession.Shell error:", "err_msg", err.Error())
 		return err
 	}
@@ -314,8 +314,10 @@ func NewSshConn(c *gin.Context) {
 	}
 
 	// 创建一个适配器来实现 io.Reader 和 io.Writer 接口
+	conn.remoteTTYFile = "/tmp/webssh_tty_" + conn.SessionId
 	wsReadWriter := &WebSocketReadWriter{
-		ws: ws,
+		ws:     ws,
+		prefix: []byte(buildRemoteTTYBootstrapCommand(conn.remoteTTYFile)),
 		signalFunc: func(sig string, program string) {
 			switch sig {
 			case "SIGINT":
@@ -339,6 +341,8 @@ func NewSshConn(c *gin.Context) {
 type WebSocketReadWriter struct {
 	ws         *websocket.Conn
 	signalFunc func(string, string)
+	prefix     []byte
+	prefixPos  int
 }
 
 type wsCtrlMsg struct {
@@ -348,6 +352,12 @@ type wsCtrlMsg struct {
 }
 
 func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
+	if w.prefixPos < len(w.prefix) {
+		n = copy(p, w.prefix[w.prefixPos:])
+		w.prefixPos += n
+		return n, nil
+	}
+
 	for {
 		msgType, message, err := w.ws.ReadMessage()
 		if err != nil {
@@ -396,14 +406,13 @@ func (s *SshConn) interruptRemoteTTY() {
 	}
 }
 
-func buildRemoteShellCommand(shell string, ttyFile string) string {
-	if strings.TrimSpace(shell) == "" {
-		shell = "sh"
-	}
-	return "tty_path=$(tty 2>/dev/null); " +
-		"tty_id=$(ls -l \"$tty_path\" 2>/dev/null | awk '{gsub(\",\", \"\", $5); print $5 \",\" $6}'); " +
-		"printf '%s\\n%s\\n' \"$tty_path\" \"$tty_id\" > " + shellQuote(ttyFile) + "; " +
-		"exec \"${SHELL:-" + shell + "}\""
+func buildRemoteTTYBootstrapCommand(ttyFile string) string {
+	return "stty -echo 2>/dev/null\n" +
+		"_webssh_tty_path=$(tty 2>/dev/null); " +
+		"_webssh_tty_id=$(ls -l \"$_webssh_tty_path\" 2>/dev/null | awk '{gsub(\",\", \"\", $5); print $5 \",\" $6}'); " +
+		"printf '%s\\n%s\\n' \"$_webssh_tty_path\" \"$_webssh_tty_id\" > " + shellQuote(ttyFile) + "; " +
+		"unset _webssh_tty_path _webssh_tty_id\n" +
+		"stty echo 2>/dev/null\n"
 }
 
 func buildRemoteTTYInterruptCommand(ttyFile string) string {
