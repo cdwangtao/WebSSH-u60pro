@@ -439,6 +439,37 @@ func UpdateRunHandler(c *gin.Context) {
 	})
 }
 
+func OpenAdbHandler(c *gin.Context) {
+    slog.Info("[API] /api/openadb 调用开始")
+
+    cmd := exec.Command("/sbin/usb/compositions/usb_switch",
+        "0x19d2", "0x1404",
+        "rndis_gsi,diag,serial,modem,ffs,dpl,qdss",
+        "MU5120ZTED0000000",
+    )
+
+    // 捕获 stdout 和 stderr
+    output, err := cmd.CombinedOutput()
+
+    // 即使 err != nil，也不直接认为失败，只记录日志
+    if err != nil {
+        slog.Warn("[API] openadb 执行返回非 0，但忽略错误",
+            "err", err.Error(),
+            "output", string(output),
+        )
+    } else {
+        slog.Info("[API] openadb 执行成功", "output", string(output))
+    }
+
+    // 返回前端统一成功
+    c.JSON(http.StatusOK, gin.H{
+        "code":    0,
+        "success": true,
+        "msg":     "ADB 命令已触发（注意：部分报错可忽略）",
+        "output":  string(output),
+    })
+}
+
 func init() {
 	config.InitConfig()
 	model.InitDatabase()
@@ -573,6 +604,10 @@ func main() {
 	{ // 系统更新
 		auth.GET("/api/update/version", UpdateVersionHandler)
 		auth.POST("/api/update/run", UpdateRunHandler)
+	}
+	{
+		// 开启 ADB 等调试端口
+		auth.POST("/api/openadb", OpenAdbHandler)
 	}
 
 	address := fmt.Sprintf("%s:%s", config.DefaultConfig.Address, config.DefaultConfig.Port)

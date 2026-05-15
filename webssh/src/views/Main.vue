@@ -64,22 +64,15 @@
             {{ autoRefresh ? '停止刷新' : '开始刷新' }}
           </button>
 
-          <div v-if="! sysVersion?.wa_inner_version?.includes('B28')" class="auto-refresh-controls">
-            <div v-if="usbStatus?.mode == 'user'">
-                <button
-                    class="btn btn-primary"
-                    @click="oneClickDebug"
-                    >开启ADB</button>
-            </div>
-
-            <div v-if="usbStatus?.mode == 'debug'">
-                <button
-                    class="btn btn-primary"
-                    @click="oneClickDebugClose"
-                    >关闭ADB</button>
-            </div>
-        
+          <div class="auto-refresh-controls">
+            <button 
+              class="btn"
+              :class="usbStatus?.connect == 1 ? 'btn-primary' : 'btn-disabled'" 
+              @click="handleOpenAdbClick" > 
+              开启ADB 
+            </button>
           </div>
+
         </div>
 
         <div class="auto-refresh-controls" style="display: flex;align-items: center;gap: 5px;flex-wrap: wrap;">
@@ -306,7 +299,7 @@
                   <td>{{ d.nr5g_pci ?? '-' }}</td>
                   <td>{{ d.nr5g_action_band?.toUpperCase() ?? '-' }}</td>
                   <td>{{ d.nr5g_action_channel ?? '-' }}</td>
-                  <td>{{ d.nr5g_bandwidth ? d.nr5g_bandwidth + 'MHz' : '-' }}</td>
+                  <td>{{ d.nr5g_bandwidth ? d.nr5g_bandwidth + 'Mhz' : '-' }}</td>
                   <td class="dbmstyle">{{ d.nr5g_rsrp }}</td>
                   <td>{{ d.nr5g_rsrq }}</td>
                   <td>{{ d.nr5g_snr }}</td>
@@ -320,7 +313,7 @@
                   <td>
                     {{
                       formatNrca(d.nrca, '', 0, 5) != '-'
-                        ? formatNrca(d.nrca, '', 0, 5) + 'MHz'
+                        ? formatNrca(d.nrca, '', 0, 5) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -337,7 +330,7 @@
                   <td>
                     {{
                       formatNrca(d.nrca, '', 1, 5) != '-'
-                        ? formatNrca(d.nrca, '', 1, 5) + 'MHz'
+                        ? formatNrca(d.nrca, '', 1, 5) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -354,7 +347,7 @@
                   <td>
                     {{
                       formatNrca(d.nrca, '', 2, 5) != '-'
-                        ? formatNrca(d.nrca, '', 2, 5) + 'MHz'
+                        ? formatNrca(d.nrca, '', 2, 5) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -560,7 +553,7 @@
                   <td>
                     {{
                       formatNrca(d.lteca, '', 0, 4) != '-'
-                        ? formatNrca(d.lteca, '', 0, 4) + 'MHz'
+                        ? formatNrca(d.lteca, '', 0, 4) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -576,7 +569,7 @@
                   <td>{{ formatNrca(d.lteca,'',1,3) }}</td>
                   <td>{{
                       formatNrca(d.lteca, '', 1, 4) != '-'
-                        ? formatNrca(d.lteca, '', 1, 4) + 'MHz'
+                        ? formatNrca(d.lteca, '', 1, 4) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -592,7 +585,7 @@
                   <td>{{ formatNrca(d.lteca,'',2,3) }}</td>
                   <td>{{
                       formatNrca(d.lteca, '', 2, 4) != '-'
-                        ? formatNrca(d.lteca, '', 2, 4) + 'MHz'
+                        ? formatNrca(d.lteca, '', 2, 4) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -608,7 +601,7 @@
                   <td>{{ formatNrca(d.lteca,'',3,3) }}</td>
                   <td>{{
                       formatNrca(d.lteca, '', 3, 4) != '-'
-                        ? formatNrca(d.lteca, '', 3, 4) + 'MHz'
+                        ? formatNrca(d.lteca, '', 3, 4) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -624,7 +617,7 @@
                   <td>{{ formatNrca(d.lteca,'',4,3) }}</td>
                   <td>{{
                       formatNrca(d.lteca, '', 4, 4) != '-'
-                        ? formatNrca(d.lteca, '', 4, 4) + 'MHz'
+                        ? formatNrca(d.lteca, '', 4, 4) + 'Mhz'
                         : '-'
                     }}
                   </td>
@@ -907,7 +900,7 @@
             <div class="info-item">
               <span class="label">带宽</span>
               <span class="value">{{
-                d.nr5g_bandwidth ? d.nr5g_bandwidth + ' MHz' : '-'
+                d.nr5g_bandwidth ? d.nr5g_bandwidth + ' Mhz' : '-'
               }}</span>
             </div>
             <!-- <div class="info-item">
@@ -1157,7 +1150,7 @@
             <div class="info-item">
               <span class="label">带宽</span>
               <span class="value">{{
-                d.nr5g_bandwidth ? d.nr5g_bandwidth + ' MHz' : '-'
+                d.nr5g_bandwidth ? d.nr5g_bandwidth + ' Mhz' : '-'
               }}</span>
             </div>
             <div class="info-item">
@@ -1242,13 +1235,9 @@ import ChartIcon from '@/assets/svgs/chart.svg';
 import DashboardIcon from '@/assets/svgs/dashboard.svg';
 import InterfaceIcon from '@/assets/svgs/interface.svg';
 import InternetIcon from '@/assets/svgs/internet.svg';
-import LockIcon from '@/assets/svgs/lock.svg';
 import NetworkIcon from '@/assets/svgs/network.svg';
-import TagIcon from '@/assets/svgs/tag.svg';
-
 import axios from 'axios';
 import { ElMessage, ElNotification } from 'element-plus';
-import { sys } from 'typescript';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 // interface UbusResponse<T = any> {
@@ -1844,34 +1833,34 @@ const wifiStatusRequest = {
 }
 
 // 打开 ADB
-const openAdbRequest = {
-  jsonrpc: '2.0',
-  id: 12,
-  method: 'call',
-  params: [
-    SESSION_ID,
-    'zwrt_bsp.usb',
-    'set',
-    {
-      mode: 'debug',
-    },
-  ],
-}
+// const openAdbRequest = {
+//   jsonrpc: '2.0',
+//   id: 12,
+//   method: 'call',
+//   params: [
+//     SESSION_ID,
+//     'zwrt_bsp.usb',
+//     'set',
+//     {
+//       mode: 'debug',
+//     },
+//   ],
+// }
 
 // 关闭 ADB
-const closeAdbRequest = {
-  jsonrpc: '2.0',
-  id: 13,
-  method: 'call',
-  params: [
-    SESSION_ID,
-    'zwrt_bsp.usb',
-    'set',
-    {
-      mode: 'user',
-    },
-  ],
-}
+// const closeAdbRequest = {
+//   jsonrpc: '2.0',
+//   id: 13,
+//   method: 'call',
+//   params: [
+//     SESSION_ID,
+//     'zwrt_bsp.usb',
+//     'set',
+//     {
+//       mode: 'user',
+//     },
+//   ],
+// }
 
 // 系统版本信息
 const sysVersionRequest = {
@@ -2503,34 +2492,48 @@ function stopAutoRefresh() {
   }
 }
 
-// 一键ADB调试
-function oneClickDebug() {
-  ElMessage.info('正在执行操作，请稍候...')
-  callUbusBatch([openAdbRequest])
-      .then((map) => {
-        // 一秒后执行刷新，确保后端状态更新
-        setTimeout(() => {
-            ElMessage.success('已关闭ADB调试模式')
-        }, 1500);
-      })
-      .catch((err) => {
-        ElMessage.error('请求失败：' + (err?.message || '未知错误'))
-      })
+const adbOpened = ref(false)
+function handleOpenAdbClick() {
+  if (usbStatus?.value.connect != 1) {
+    ElMessage.warning('请先连接数据线再试')
+    return
+  }
+  oneClickDebug()
 }
 
-function oneClickDebugClose() {
+function oneClickDebug() {
   ElMessage.info('正在执行操作，请稍候...')
-  callUbusBatch([closeAdbRequest])
-      .then((map) => {
-        // 一秒后执行刷新，确保后端状态更新
-        setTimeout(() => {
-            ElMessage.success('已关闭ADB调试模式')
-        }, 1500);
-      })
-      .catch((err) => {
-        ElMessage.error('请求失败：' + (err?.message || '未知错误'))
-      })
+
+  axios.post('/api/openadb')
+    .then(res => {
+      // 可以根据后端返回判断是否成功
+      const success = res?.data?.code === 0 || res?.data?.success
+      setTimeout(() => {
+        if (success) {
+          ElMessage.success('ADB 调试模式已开启')
+        } else {
+          ElMessage.error('ADB 开启失败，请重试')
+        }
+      }, 1500)
+    })
+    .catch(err => {
+      ElMessage.error('请求失败：' + (err?.message || '未知错误'))
+    })
 }
+
+// function oneClickDebugClose() {
+//   ElMessage.info('正在执行操作，请稍候...')
+//   callUbusBatch([closeAdbRequest])
+//       .then((map) => {
+//         // 一秒后执行刷新，确保后端状态更新
+//         setTimeout(() => {
+//             ElMessage.success('已关闭ADB调试模式')
+//         }, 1500);
+//       })
+//       .catch((err) => {
+//         ElMessage.error('请求失败：' + (err?.message || '未知错误'))
+//       })
+// }
 
 // 短信转发
 function smsForwardHandler() {
@@ -3724,6 +3727,14 @@ onUnmounted(() => {
 .psm {
   color: #059669;
   font-weight: 600;
+}
+
+.btn-disabled {
+  background: #9ca3af;
+  border-color: #9ca3af;
+  color: #fff;
+  cursor: not-allowed;
+  opacity: 0.75;
 }
 
 /* 表格手机端横向滚动 */
