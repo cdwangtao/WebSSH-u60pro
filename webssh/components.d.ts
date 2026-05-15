@@ -38,8 +38,10 @@ declare module 'vue' {
     ElResult: typeof import('element-plus/es')['ElResult']
     ElRow: typeof import('element-plus/es')['ElRow']
     ElSelect: typeof import('element-plus/es')['ElSelect']
+    ElSlider: typeof import('element-plus/es')['ElSlider']
     ElStep: typeof import('element-plus/es')['ElStep']
     ElSteps: typeof import('element-plus/es')['ElSteps']
+    ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
@@ -52,5 +54,6 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SshdCert: typeof import('./src/components/SshdCert.vue')['default']
     SshdUser: typeof import('./src/components/SshdUser.vue')['default']
+    ThemeSettings: typeof import('./src/components/ThemeSettings.vue')['default']
   }
 }

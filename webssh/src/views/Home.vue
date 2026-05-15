@@ -114,6 +114,8 @@
                 <el-button-group>
                   <el-button type="primary" :icon="Upload" :loading="chkingUpdate" @click="checkUpdate"></el-button>
 
+                  <el-button type="primary" :icon="MagicStick" @click="openThemeSettings"></el-button>
+
                   <el-button type="primary" :icon="Avatar" @click="data.modify_pwd_dialog_visible = true"></el-button>
 
                   <!-- admin 角色才能管理 -->
@@ -142,19 +144,15 @@
             </button>
           </el-header>
 
-          <!-- 折叠状态：只显示一个向下箭头 -->
-          <button
+          <!-- 折叠状态：固定在页面顶部的细条展开按钮 -->
+          <div
             v-show="data.navCollapsed"
-            class="nav-anchor-toggle nav-anchor-toggle-closed"
+            class="nav-toggle-closed"
             @click="data.navCollapsed = false"
             title="展开导航栏"
           >
-            <span class="nav-anchor-icon">
-              <el-icon>
-                <ArrowDown />
-              </el-icon>
-            </span>
-          </button>
+            <el-icon><ArrowDown /></el-icon>
+          </div>
 
           <div>
             <el-dialog
@@ -488,13 +486,16 @@
             <el-dialog title="系统管理" v-model="data.manage_dialog_visible" v-bind:fullscreen="true">
               <Manage></Manage>
             </el-dialog>
+
+            <!-- 主题设置 -->
+            <ThemeSettings ref="themeSettingsRef" />
           </div>
     
           
 
     <!-- 主内容页 -->
     <div v-if="data.host_tabs.length === 0"
-      style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3b82f6 100%);">
+      :style="mainBgStyle">
       <Main></Main>
     </div>
 
@@ -576,6 +577,7 @@ import {
   Eleme,
   Files,
   FolderOpened,
+  MagicStick,
   Menu,
   Sort,
   Star,
@@ -583,6 +585,7 @@ import {
   Tools,
   Upload
 } from "@element-plus/icons-vue";
+import { AttachAddon } from "@xterm/addon-attach";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -591,11 +594,14 @@ import { ElMessage, ElMessageBox, ElNotification, ElPopover } from "element-plus
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import Main from "./Main.vue";
+import ThemeSettings from "@/components/ThemeSettings.vue";
+import { useThemeStore } from "@/stores/themeStore";
 const Manage = defineAsyncComponent(() => import('./Manage.vue'))
 
 
 let router = useRouter();
 let globalStore = useGlobalStore();
+const themeStore = useThemeStore();
 
 enum Mode {
   "create" = 0,
@@ -637,23 +643,6 @@ interface Host {
   fit: FitAddon;
   ws: WebSocket;
   is_close: boolean;
-}
-
-function sendTerminalData(ws: WebSocket, data: string) {
-  ws.send(new TextEncoder().encode(data));
-}
-
-function isTopScreen(term: Terminal): boolean {
-  const element = term.element;
-  const rows = element ? Array.from(element.querySelectorAll(".xterm-rows > div")) : [];
-  const text = rows.slice(0, 12).map((row) => row.textContent ?? "").join("\n");
-  return /^\s*top\s+-/im.test(text) ||
-    (/load average:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text)) ||
-    (/\bCPU:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text) && /\bCOMMAND\b/i.test(text));
-}
-
-function sendTerminalSignal(ws: WebSocket, signal: "SIGINT", program: string = "") {
-  ws.send(JSON.stringify({ type: "signal", signal, program }));
 }
 
 /**
@@ -776,6 +765,13 @@ const filterHostTable = computed(() =>
       i.address.toLowerCase().includes(searchHost.value.toLowerCase())
   )
 )
+
+// 主题设置
+const themeSettingsRef = ref<InstanceType<typeof ThemeSettings> | null>(null);
+
+function openThemeSettings() {
+  themeSettingsRef.value?.open();
+}
 
 // 检查更新
 const chkingUpdate = ref(false);
@@ -1000,7 +996,7 @@ function getAllCmdNote() {
  */
 function execCmdCurrentSession(row: CmdNode) {
   try {
-    sendTerminalData(data.current_host.ws, row.cmd_data + "\n");
+    data.current_host.ws.send(row.cmd_data + "\n");
   } catch (e) {
     ElMessage.error("当前会话执行命令失败");
   }
@@ -1016,7 +1012,7 @@ function execCmdAllSession(row: CmdNode) {
       return;
     }
     data.host_tabs.forEach((h) => {
-      sendTerminalData(h.ws, row.cmd_data + "\n");
+      h.ws.send(row.cmd_data + "\n");
     });
   } catch (e) {
     ElMessage.error("执行命令失败");
@@ -1626,7 +1622,6 @@ function connectHost(host: Host, isReconnect: boolean = false) {
           let webSockerUrl = `${headPart}${basePath}${tailPart}`;
 
           let ws = new WebSocket(webSockerUrl);
-          ws.binaryType = "arraybuffer";
           ws.onopen = function () {
             try {
               // 初始化benner
@@ -1641,7 +1636,7 @@ function connectHost(host: Host, isReconnect: boolean = false) {
               // 初始化命令
               let cmdStr = connHost.init_cmd.trim()
               if (cmdStr !== "") {
-                sendTerminalData(ws, `${cmdStr}\n`)
+                ws.send(`${cmdStr}\n`)
               }
             } catch (err) {
               console.log(err);
@@ -1662,33 +1657,20 @@ function connectHost(host: Host, isReconnect: boolean = false) {
             }
           }
 
-          ws.onmessage = function (event: MessageEvent<string | ArrayBuffer>) {
-            if (typeof event.data === "string") {
-              connHost.term.write(event.data);
-              return;
-            }
-            connHost.term.write(new Uint8Array(event.data));
-          }
-
-          connHost.term.onData((value: string) => {
-            if (ws.readyState === WebSocket.OPEN) {
-              sendTerminalData(ws, value);
-            }
-          });
-
           connHost.term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
             if (event.type === "keydown" && event.ctrlKey && event.key.toLowerCase() === "c") {
               if (connHost.term.hasSelection()) {
-                return true;
+                return false;
               }
               if (ws.readyState === WebSocket.OPEN) {
-                sendTerminalData(ws, "\x03");
-                sendTerminalSignal(ws, "SIGINT", isTopScreen(connHost.term) ? "top" : "");
+                ws.send("\x03");
               }
               return false;
             }
             return true;
           });
+
+          connHost.term.loadAddon(new AttachAddon(ws));
           connHost.ws = ws;
           connHost.is_close = false;
           connHost.term.focus();
@@ -1955,7 +1937,25 @@ const terminalBackground = computed(() => {
   if (data.current_host?.term?.options?.theme?.background) {
     return data.current_host.term.options.theme.background;
   }
-  return data.background || '#000000'; // 使用配置的背景色或默认黑色
+  return data.background || '#000000';
+});
+
+// 用于 Main.vue 包装器的主题背景样式
+const mainBgStyle = computed(() => {
+  let bg = `linear-gradient(135deg, 
+    hsl(${themeStore.hue}, ${Math.round(themeStore.saturation * 100)}%, 28%) 0%, 
+    hsl(${themeStore.hue}, ${Math.round(themeStore.saturation * 80)}%, 38%) 50%, 
+    hsl(${themeStore.hue}, ${Math.round(themeStore.saturation * 70)}%, 50%) 100%)`;
+  if (themeStore.backgroundEnabled && themeStore.backgroundUrl) {
+    bg = `url(${themeStore.backgroundUrl}), ${bg}`;
+  }
+  return {
+    background: bg,
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed'
+  };
 });
 
 </script>
@@ -1966,9 +1966,11 @@ const terminalBackground = computed(() => {
   position: relative;
   height: fit-content;
   padding: 8px 12px 10px;
-  background:#315697;
+  background: linear-gradient(135deg,
+    hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 28%),
+    hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 38%));
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--theme-blur-rate, 14px));
   overflow: visible;
   z-index: 2000;
 }
@@ -1998,7 +2000,7 @@ const terminalBackground = computed(() => {
 
 .el-button-group {
   display: flex;
-  max-width: 100%; /* 防止超出屏幕 */
+  max-width: 100%;
 }
 
 .nav :deep(.el-button-group) {
@@ -2019,13 +2021,15 @@ const terminalBackground = computed(() => {
   border-top: none;
   border-radius: 0 0 20px 20px;
   transform: translateX(-50%);
-  background: #315697;
+  background: linear-gradient(135deg,
+    hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 28%),
+    hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 38%));
   color: #e2e0e0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(var(--theme-blur-rate, 16px));
   transition:
     transform 0.2s ease,
     background 0.2s ease,
@@ -2033,18 +2037,64 @@ const terminalBackground = computed(() => {
     opacity 0.2s ease;
 }
 
-/* 暗色模式支持 */
 @media (prefers-color-scheme: dark) {
   .top-nav-header {
-    background: #263144;
+    background: linear-gradient(135deg,
+      hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 20%),
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 30%));
   }
   .nav-anchor-toggle {
-    background: #263144;
+    background: linear-gradient(135deg,
+      hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 20%),
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 30%));
   }
   
 }
+@media (prefers-color-scheme: dark) {
+  .nav-toggle-closed {
+    background: linear-gradient(135deg,
+      hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 16%),
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 26%));
+  }
+}
 .nav-anchor-toggle-open {
   top: 50px;
+}
+
+/* 折叠状态展开按钮 - 固定在页面顶部居中 */
+.nav-toggle-closed {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52px;
+  height: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(135deg,
+    hsl(calc(var(--theme-primary-h, 201) * 1), var(--theme-primary-s, 100%), 28%),
+    hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 38%));
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(var(--theme-blur-rate, 10px));
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0.85;
+}
+
+.nav-toggle-closed:hover {
+  opacity: 1;
+  height: 20px;
+  transform: translateX(-50%) translateY(0);
+}
+
+.nav-toggle-closed .el-icon {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .nav-anchor-icon {
@@ -2244,5 +2294,10 @@ const terminalBackground = computed(() => {
     padding: 0px 11px;
   }
 
+}
+
+/* 终端自适应 */
+:deep(.el-tabs__header) {
+  margin: 0 !important;
 }
 </style>

@@ -257,9 +257,16 @@ function handleLoginSuccess(res: ResponseData) {
 
 <style scoped>
 .login-container {
+  position: relative;
   min-height: 100vh;
   height: 100vh;
-  background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
+  background:
+    var(--theme-bg-image),
+    linear-gradient(135deg,
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 18%) 0%,
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 28%) 100%);
+  background-size: cover;
+  background-position: center;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -268,14 +275,25 @@ function handleLoginSuccess(res: ResponseData) {
   box-sizing: border-box;
 }
 
+.login-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--theme-overlay-color);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .login-box {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 420px;
   background: rgba(255, 255, 255, 0.98);
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   padding: 40px 30px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--theme-blur-rate, 10px));
   margin-top: 10vh;
 }
 
@@ -359,9 +377,9 @@ function handleLoginSuccess(res: ResponseData) {
   font-size: 16px;
   font-weight: 500;
   letter-spacing: 2px;
-  background: -webkit-gradient(linear, left top, right top, from(#4c51bf), to(#667eea));
-  background: -o-linear-gradient(left, #4c51bf, #667eea);
-  background: linear-gradient(to right, #4c51bf, #667eea);
+  background: -webkit-gradient(linear, left top, right top, from(hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 30%)), to(hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 45%)));
+  background: -o-linear-gradient(left, hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 30%), hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 45%));
+  background: linear-gradient(to right, hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 30%), hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 45%));
   border: none;
   border-radius: 12px;
   -webkit-transition: all 0.3s ease;
@@ -377,8 +395,8 @@ function handleLoginSuccess(res: ResponseData) {
   -webkit-transform: translateY(-2px);
   -ms-transform: translateY(-2px);
   transform: translateY(-2px);
-  -webkit-box-shadow: 0 6px 20px rgba(76, 81, 191, 0.3);
-  box-shadow: 0 6px 20px rgba(76, 81, 191, 0.3);
+  -webkit-box-shadow: 0 6px 20px rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.3);
+  box-shadow: 0 6px 20px rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.3);
 }
 
 .login-button:active {

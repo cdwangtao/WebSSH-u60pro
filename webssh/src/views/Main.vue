@@ -1,5 +1,6 @@
 <template>
   <div class="page">
+    <div class="page-overlay"></div>
     <div class="child">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -19,19 +20,9 @@
         <div style="display: flex; gap: 10px">
 
           <div style="display: flex; position: relative">
-            <span class="uptime-label">{{ netWorkProvider }} {{ networkType }}{{ is5GA ? 'A' : '' }}</span>
+            <span class="uptime-label" style="color: var(--theme-text-color, rgba(255,255,255,0.85))">{{ netWorkProvider }} {{ networkType }}{{ is5GA ? 'A' : '' }}</span>
 
           </div>
-
-          <!-- <div style="display: flex; position: relative"> -->
-            <!-- <div class="signal-bars">
-              <div
-                v-for="n in 5"
-                :key="n"
-                :class="['bar full-bar', { active: n <= signalBars }]"></div>
-            </div> -->
-            <!-- <span>{{ networkType }}{{ is5GA ? 'A' : '' }}</span> -->
-          <!-- </div> -->
 
           <div style="display: flex; align-items: center">
             <div
@@ -47,7 +38,6 @@
                 class="battery-level"
                 :style="{ width: `${deviceInfo.bat_percent || '0'}%` }"></div>
               <div class="battery-head"></div>
-              <!-- 充电状态 -->
               <div class="battery-charging">⚡</div>
             </div>
             <span style="padding-left: 10px" v-if="deviceInfo.bat_percent"
@@ -56,33 +46,29 @@
           </div>
         </div>
 
-        <div class="auto-refresh-controls" style="display: flex;align-items: center;gap: 10px;flex-wrap: wrap;">
+        <div class="ctrl-group">
           <button
             class="btn btn-primary":class="autoRefresh ? 'btn-success' : 'btn-secondary'"
             @click="toggleAutoRefresh"
           >
             {{ autoRefresh ? '停止刷新' : '开始刷新' }}
           </button>
-
-          <div class="auto-refresh-controls">
-            <button 
-              class="btn"
-              :class="usbStatus?.connect == 1 ? 'btn-primary' : 'btn-disabled'" 
-              @click="handleOpenAdbClick" > 
-              开启ADB 
-            </button>
-          </div>
-
+          <button 
+            class="btn"
+            :class="usbStatus?.connect == 1 ? 'btn-primary' : 'btn-disabled'" 
+            @click="handleOpenAdbClick" > 
+            开启ADB 
+          </button>
         </div>
 
-        <div class="auto-refresh-controls" style="display: flex;align-items: center;gap: 5px;flex-wrap: wrap;">
+        <div class="ctrl-group">
           WiFi:<span :class="wifiInfo.highPerformance ? 'hp' : 'psm'">{{ wifiModeText }}</span>
           <button style="margin-left: 1px;" class="btn" :class="wifiInfo.highPerformance ? 'btn-primary' : 'btn-primary'"
                   @click="psmSetHandler(!wifiInfo.highPerformance)" >
             {{ wifiButtonText }}
           </button>
         </div>
-        <div v-if="wifiStatus?.main2g_ssid !== wifiStatus?.main5g_ssid" class="auto-refresh-controls" style="display: flex;align-items: center;gap: 10px;flex-wrap: wrap;">
+        <div v-if="wifiStatus?.main2g_ssid !== wifiStatus?.main5g_ssid" class="ctrl-group">
           2.4G-WIFI: {{wifiInfo.wifiStatus24?'开':'关'}}
           <button style="margin-left: 1px;" class="btn" :class="wifiInfo.wifiStatus24 ? 'btn-primary' : 'btn-primary'"
                   @click="wifiStateSetHandler('wlan0',!wifiInfo.wifiStatus24)">{{wifiInfo.wifiStatus24?'关闭':'开启'}}</button>
@@ -2617,11 +2603,13 @@ const cpuCoreLoads = computed(() => {
 
 const cpuPieStyle = computed(() => {
   const load = totalCpuLoad.value;
+  const h = getComputedStyle(document.documentElement).getPropertyValue('--theme-primary-h').trim() || '201';
+  const s = getComputedStyle(document.documentElement).getPropertyValue('--theme-primary-s').trim() || '100%';
+  const l = getComputedStyle(document.documentElement).getPropertyValue('--theme-primary-l').trim() || '46%';
   return {
-    background: `conic-gradient(
-      #63e6be 0% ${load}%,
-      rgba(255,255,255,0.12) ${load}% 100%
-    )`,
+    '--pie-percent': load + '%',
+    '--pie-fill': `hsl(${h} ${s} ${l} / 0.7)`,
+    '--pie-track': `hsla(${h} ${s} ${l} / 0.13)`,
   };
 });
 
@@ -2671,24 +2659,46 @@ onUnmounted(() => {
 <style scoped>
 /* 基础样式 */
 .page {
-  color: white;
+  position: relative;
+  color: var(--theme-text-color, white);
   min-height: 100vh;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3b82f6 100%);
+  background:
+    var(--theme-bg-image),
+    linear-gradient(135deg,
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.85), 22%) 0%,
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.7), 33%) 50%,
+      hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 45%) 100%);
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+  background-position: center, center;
+  background-attachment: fixed;
   padding: 20px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.page-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--theme-overlay-color);
+  pointer-events: none;
+  z-index: 0;
+  transition: background-color 0.3s ease;
 }
 
 /* 页面头部 */
 .page-header {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 10px;
   justify-content: space-between;
   align-items: center;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--theme-blur-rate, 20px));
   border-radius: 16px;
   padding: 12px 16px;
   margin-bottom: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.08);
 }
 
 
@@ -2701,7 +2711,7 @@ onUnmounted(() => {
 .title {
   font-size: 28px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--theme-text-color, #ffffff);
   margin: 0;
 }
 
@@ -2729,7 +2739,7 @@ onUnmounted(() => {
 .status-text {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.8));
 }
 
 @keyframes pulse {
@@ -2745,8 +2755,16 @@ onUnmounted(() => {
 /* 控制区域 */
 .controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 10px 16px;
+}
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .auto-refresh-controls {
@@ -2762,7 +2780,7 @@ onUnmounted(() => {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
 }
 
 .checkbox-label input[type='checkbox'] {
@@ -2798,8 +2816,8 @@ onUnmounted(() => {
   padding: 4px 6px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.15);
+  backdrop-filter: blur(var(--theme-blur-rate, 10px));
   font-size: 14px;
   color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
@@ -2808,11 +2826,11 @@ onUnmounted(() => {
 
 .auto-refresh-controls select:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--theme-btn-active-color, #4299e1);
 }
 
 .auto-refresh-controls select:disabled {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.05);
   color: rgba(255, 255, 255, 0.4);
   cursor: not-allowed;
 }
@@ -2837,7 +2855,7 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: #409eff5d;
+  background: var(--theme-btn-color, #409eff5d);
   color: white;
   box-shadow: 0 4px 12px rgba(66, 153, 225, 0.1);
 }
@@ -2845,6 +2863,7 @@ onUnmounted(() => {
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(66, 153, 225, 0.4);
+  background: var(--theme-btn-active-color, #409eff);
 }
 
 .btn-danger {
@@ -2882,8 +2901,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.15);
+  backdrop-filter: blur(var(--theme-blur-rate, 20px));
   border-radius: 16px;
   padding: 40px;
   text-align: center;
@@ -2937,7 +2956,7 @@ onUnmounted(() => {
 
 /* 卡片样式 */
 .card {
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--theme-blur-rate, 20px));
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -2945,6 +2964,7 @@ onUnmounted(() => {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.06);
 }
 
 .card:hover {
@@ -2961,7 +2981,7 @@ onUnmounted(() => {
 }
 
 .card-header {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.1);
   padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
@@ -2972,7 +2992,7 @@ onUnmounted(() => {
 .card-header h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-text-color, #ffffff);
   margin: 0;
 }
 
@@ -3027,9 +3047,10 @@ onUnmounted(() => {
 .device-label {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.7));
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-bottom: 12px;
 }
 
 .device-values {
@@ -3046,13 +3067,13 @@ onUnmounted(() => {
 
 .load-label {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.6));
 }
 
 .load-value {
   font-size: 16px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
 }
 
 .memory-info {
@@ -3064,7 +3085,7 @@ onUnmounted(() => {
 .memory-bar {
   position: relative;
   height: 20px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.1);
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3098,7 +3119,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.8));
 }
 
 .memory-used {
@@ -3106,11 +3127,11 @@ onUnmounted(() => {
 }
 
 .memory-separator {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.5));
 }
 
 .memory-total {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.7));
 }
 
 .temp-info {
@@ -3122,12 +3143,12 @@ onUnmounted(() => {
 .temp-value {
   font-size: 18px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
 }
 
 .temp-bar {
   height: 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.1);
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3148,7 +3169,7 @@ onUnmounted(() => {
 .uptime-value {
   font-size: 24px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
 }
 
 /* 信息网格 */
@@ -3169,7 +3190,7 @@ onUnmounted(() => {
 .info-item .label {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.7));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3177,7 +3198,7 @@ onUnmounted(() => {
 .info-item .value {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
   word-break: break-all;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -3192,7 +3213,7 @@ onUnmounted(() => {
 .info-item .label {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.7));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3200,7 +3221,7 @@ onUnmounted(() => {
 .info-item .value {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
   word-break: break-all;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -3320,7 +3341,7 @@ onUnmounted(() => {
   padding: 10px 12px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.18);
   color: rgba(255, 255, 255, 0.82);
   font-size: 12px;
   line-height: 1.55;
@@ -3411,7 +3432,7 @@ onUnmounted(() => {
 .progress-bar {
   position: relative;
   height: 24px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.1);
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3452,7 +3473,7 @@ onUnmounted(() => {
   transform: translate(-50%, -50%);
   font-size: 12px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--theme-text-color, #ffffff);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   z-index: 1;
 }
@@ -3567,10 +3588,10 @@ onUnmounted(() => {
 .interface-section h4 {
   font-size: 16px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
   margin: 0 0 16px 0;
   padding-bottom: 8px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(calc(var(--theme-text-gray, 255) * 1), calc(var(--theme-text-gray, 255) * 1), calc(var(--theme-text-gray, 255) * 1), 0.2);
 }
 
 /* 网络接口状态网格布局 */
@@ -3595,7 +3616,7 @@ onUnmounted(() => {
 .info-grid-compact .info-item .label {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.6));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3603,7 +3624,7 @@ onUnmounted(() => {
 .info-grid-compact .info-item .value {
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
   word-break: break-all;
 }
 
@@ -3617,7 +3638,7 @@ onUnmounted(() => {
 .traffic-item {
   text-align: center;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.1);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -3625,7 +3646,7 @@ onUnmounted(() => {
 .traffic-label {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.7));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -3634,7 +3655,7 @@ onUnmounted(() => {
 .traffic-value {
   font-size: 18px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.9));
 }
 
 .traffic-value.upload {
@@ -3717,7 +3738,7 @@ onUnmounted(() => {
 
 .mytable{caption-side: bottom;}
 .mytable{border-collapse: collapse;}
-.mytable,tr,td{border: 1px solid rgb(59, 104, 141);font-size: 14px;text-align: center;}
+.mytable,tr,td{border: 1px solid rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.35);font-size: 14px;text-align: center;color: var(--theme-text-color, rgba(255,255,255,0.85));}
 .dbmstyle{color: rgb(104, 211, 145)}
 
 .hp {
@@ -3777,6 +3798,8 @@ onUnmounted(() => {
   }
 }
 .child {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
@@ -3820,22 +3843,28 @@ onUnmounted(() => {
 }
 
 .cpu-pie {
+  position: relative;
   width: 115px;
   height: 115px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: conic-gradient(
+    var(--pie-fill) 0 var(--pie-percent),
+    var(--pie-track) var(--pie-percent) 100%
+  );
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 16px 34px rgba(0, 0, 0, 0.26);
 }
 
 .cpu-pie-inner {
-  width: 80px;
-  height: 80px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 83px;
+  height: 83px;
   border-radius: 50%;
-  background: #315697;
+  background: hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 28%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3852,7 +3881,7 @@ onUnmounted(() => {
 .cpu-pie-text {
   margin-top: 8px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.62));
 }
 
 .cpu-core-grid {
@@ -3866,7 +3895,7 @@ onUnmounted(() => {
   padding: 10px 12px;
   padding-bottom: 16px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.045);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -3881,13 +3910,13 @@ onUnmounted(() => {
 .cpu-core-name {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.62));
 }
 
 .cpu-core-value {
   font-size: 16px;
   font-weight: 900;
-  color: #fff;
+  color: var(--theme-text-color, #fff);
 }
 
 .cpu-core-bar {
@@ -3900,7 +3929,9 @@ onUnmounted(() => {
 .cpu-core-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #4facfe 0%, #63e6be 100%);
+  background: linear-gradient(90deg,
+    hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 55%),
+    hsl(calc(var(--theme-primary-h, 201) * 1 + 120), calc(var(--theme-primary-s, 100%) * 0.8), 55%));
   transition: width 0.25s ease;
 }
 
@@ -3909,8 +3940,9 @@ onUnmounted(() => {
   padding: 18px;
   border-radius: 18px;
   background:
-    radial-gradient(circle at top left, rgba(99, 230, 190, 0.12), transparent 38%),
-    rgba(255, 255, 255, 0.045);
+    radial-gradient(circle at top left,
+      rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.12), transparent 38%),
+    rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.045);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -3918,7 +3950,7 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--theme-text-color, rgba(255, 255, 255, 0.68));
   margin-bottom: 16px;
 }
 
@@ -3937,23 +3969,22 @@ onUnmounted(() => {
 }
 
 .temp-ring {
-  --ring-color: #63e6be;
+  --ring-color: hsl(calc(var(--theme-primary-h, 201) * 1 + 120), calc(var(--theme-primary-s, 100%) * 0.8), 55%);
 
+  position: relative;
   width: 104px;
   height: 104px;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
   background:
     conic-gradient(
       var(--ring-color) 0 var(--percent),
-      rgba(255, 255, 255, 0.13) var(--percent) 100%
+      rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.13) var(--percent) 100%
     );
   transition: background 0.25s ease;
 }
 
 .temp-ring.normal {
-  --ring-color: #63e6be;
+  --ring-color: hsl(calc(var(--theme-primary-h, 201) * 1 + 120), calc(var(--theme-primary-s, 100%) * 0.8), 55%);
 }
 
 .temp-ring.warning {
@@ -3965,10 +3996,14 @@ onUnmounted(() => {
 }
 
 .temp-ring-inner {
-  width: 74px;
-  height: 74px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  background: #315697;
+  background: hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 28%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3978,8 +4013,17 @@ onUnmounted(() => {
 /* 暗色模式支持 */
 @media (prefers-color-scheme: dark) {
   .page {
-    color: white;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    color: var(--theme-text-color, white);
+    background:
+      var(--theme-bg-image),
+      linear-gradient(135deg,
+        hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 8%) 0%,
+        hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.6), 16%) 50%,
+        hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.5), 24%) 100%);
+    background-size: cover, cover;
+    background-repeat: no-repeat, no-repeat;
+    background-position: center, center;
+    background-attachment: fixed;
   }
 
   .page-header,
@@ -3987,7 +4031,7 @@ onUnmounted(() => {
   .loading,
   .error,
   .empty {
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.06);
     border-color: rgba(255, 255, 255, 0.1);
   }
 
@@ -3995,25 +4039,17 @@ onUnmounted(() => {
   .card-header h3,
   .info-item .value,
   .traffic-value {
-    color: #f1f5f9;
+    color: var(--theme-text-color, #f1f5f9);
   }
 
   .status-text,
   .info-item .label,
   .traffic-label {
-    color: #cbd5e1;
+    color: var(--theme-text-color, #cbd5e1);
   }
 
   .card-header {
-    background: rgba(30, 41, 59, 0.5);
-  }
-
-  .cpu-pie-inner {
-    background: #263144;
-  }
-
-  .temp-ring-inner {
-    background: #263144;
+    background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.08);
   }
 
   .interface-section h4 {
@@ -4026,13 +4062,13 @@ onUnmounted(() => {
 .temp-ring-inner strong {
   font-size: 22px;
   line-height: 1;
-  color: #fff;
+  color: var(--theme-text-color, #fff);
 }
 
 .temp-ring-inner span {
   margin-top: 6px;
   font-size: 12px;
-  color: rgba(255,255,255,0.6);
+  color: var(--theme-text-color, rgba(255,255,255,0.6));
 }
 
 .temp-state {
@@ -4068,19 +4104,19 @@ onUnmounted(() => {
   font-size: 46px;
   font-weight: 900;
   line-height: 1;
-  color: #ffffff;
+  color: var(--theme-text-color, #ffffff);
 }
 
 .memory-detail {
   margin-top: 8px;
   font-size: 18px;
   font-weight: 800;
-  color: rgba(255,255,255,0.9);
+  color: var(--theme-text-color, rgba(255,255,255,0.9));
 }
 
 .memory-detail span {
   font-size: 14px;
-  color: rgba(255,255,255,0.55);
+  color: var(--theme-text-color, rgba(255,255,255,0.55));
 }
 
 .memory-stack {
@@ -4088,20 +4124,22 @@ onUnmounted(() => {
   height: 16px;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(255,255,255,0.12);
+  background: rgba(calc(var(--theme-primary-r, 0) * 1), calc(var(--theme-primary-g, 97) * 1), calc(var(--theme-primary-b, 255) * 1), 0.12);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
 }
 
 .memory-stack-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #63e6be 0%, #4facfe 100%);
+  background: linear-gradient(90deg,
+    hsl(calc(var(--theme-primary-h, 201) * 1), calc(var(--theme-primary-s, 100%) * 0.8), 55%),
+    hsl(calc(var(--theme-primary-h, 201) * 1 + 120), calc(var(--theme-primary-s, 100%) * 0.8), 55%));
 }
 
 .memory-caption {
   margin-top: 10px;
   font-size: 12px;
-  color: rgba(255,255,255,0.48);
+  color: var(--theme-text-color, rgba(255,255,255,0.48));
 }
 
 @media (max-width: 100px) {

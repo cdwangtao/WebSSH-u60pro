@@ -1,11 +1,14 @@
 package service
 
 import (
+	"encoding/json"
 	"gossh/app/config"
 	"gossh/app/model"
 	"gossh/gin"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path"
 	"runtime"
 )
 
@@ -29,6 +32,44 @@ func SetRunConf(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": config.DefaultConfig})
+}
+
+var themeFilePath = path.Join(config.WorkDir, "Theme.json")
+
+func GetTheme(c *gin.Context) {
+	data, err := os.ReadFile(themeFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": nil})
+			return
+		}
+		c.JSON(200, gin.H{"code": 1, "msg": "读取主题文件失败: " + err.Error()})
+		return
+	}
+	var theme map[string]any
+	if err := json.Unmarshal(data, &theme); err != nil {
+		c.JSON(200, gin.H{"code": 1, "msg": "解析主题文件失败: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": theme})
+}
+
+func SetTheme(c *gin.Context) {
+	var theme map[string]any
+	if err := c.ShouldBindJSON(&theme); err != nil {
+		c.JSON(200, gin.H{"code": 1, "msg": err.Error()})
+		return
+	}
+	data, err := json.Marshal(theme)
+	if err != nil {
+		c.JSON(200, gin.H{"code": 1, "msg": "序列化主题失败: " + err.Error()})
+		return
+	}
+	if err := os.WriteFile(themeFilePath, data, 0644); err != nil {
+		c.JSON(200, gin.H{"code": 1, "msg": "保存主题文件失败: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"code": 0, "msg": "ok"})
 }
 
 func GetIsInit(c *gin.Context) {
