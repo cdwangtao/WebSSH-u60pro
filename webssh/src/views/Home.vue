@@ -583,7 +583,6 @@ import {
   Tools,
   Upload
 } from "@element-plus/icons-vue";
-import { AttachAddon } from "@xterm/addon-attach";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -640,19 +639,12 @@ interface Host {
   is_close: boolean;
 }
 
-function isTopScreen(term: Terminal): boolean {
-  const buffer = term.buffer.active;
-  const visibleStart = Math.max(0, buffer.baseY);
-  const visibleEnd = Math.min(buffer.length, visibleStart + Math.min(term.rows, 12));
-  const lines: string[] = [];
+function sendTerminalData(ws: WebSocket, data: string) {
+  ws.send(new TextEncoder().encode(data));
+}
 
-  for (let i = visibleStart; i < visibleEnd; i++) {
-    lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
-  }
-
-  const text = lines.join("\n");
-  return /^\s*top\s+-/im.test(text) ||
-    (/load average:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text));
+function sendTerminalSignal(ws: WebSocket, signal: "SIGINT") {
+  ws.send(JSON.stringify({ type: "signal", signal }));
 }
 
 /**
@@ -999,7 +991,7 @@ function getAllCmdNote() {
  */
 function execCmdCurrentSession(row: CmdNode) {
   try {
-    data.current_host.ws.send(row.cmd_data + "\n");
+    sendTerminalData(data.current_host.ws, row.cmd_data + "\n");
   } catch (e) {
     ElMessage.error("当前会话执行命令失败");
   }
@@ -1015,7 +1007,7 @@ function execCmdAllSession(row: CmdNode) {
       return;
     }
     data.host_tabs.forEach((h) => {
-      h.ws.send(row.cmd_data + "\n");
+      sendTerminalData(h.ws, row.cmd_data + "\n");
     });
   } catch (e) {
     ElMessage.error("执行命令失败");
@@ -1625,6 +1617,7 @@ function connectHost(host: Host, isReconnect: boolean = false) {
           let webSockerUrl = `${headPart}${basePath}${tailPart}`;
 
           let ws = new WebSocket(webSockerUrl);
+          ws.binaryType = "arraybuffer";
           ws.onopen = function () {
             try {
               // 初始化benner
@@ -1639,7 +1632,7 @@ function connectHost(host: Host, isReconnect: boolean = false) {
               // 初始化命令
               let cmdStr = connHost.init_cmd.trim()
               if (cmdStr !== "") {
-                ws.send(`${cmdStr}\n`)
+                sendTerminalData(ws, `${cmdStr}\n`)
               }
             } catch (err) {
               console.log(err);
@@ -1660,26 +1653,33 @@ function connectHost(host: Host, isReconnect: boolean = false) {
             }
           }
 
+          ws.onmessage = function (event: MessageEvent<string | ArrayBuffer>) {
+            if (typeof event.data === "string") {
+              connHost.term.write(event.data);
+              return;
+            }
+            connHost.term.write(new Uint8Array(event.data));
+          }
+
+          connHost.term.onData((value: string) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              sendTerminalData(ws, value);
+            }
+          });
+
           connHost.term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
             if (event.type === "keydown" && event.ctrlKey && event.key.toLowerCase() === "c") {
               if (connHost.term.hasSelection()) {
                 return true;
               }
               if (ws.readyState === WebSocket.OPEN) {
-                if (isTopScreen(connHost.term)) {
-                  // top 接管终端输入后不一定响应 ETX，发送 q 使用它自身的退出键。
-                  ws.send("q");
-                  return false;
-                }
-                // 发送 ETX 给 PTY cooked 模式下的进程，ISIG=1 时 PTY 行规转换为 SIGINT。
-                ws.send("\x03");
+                sendTerminalData(ws, "\x03");
+                sendTerminalSignal(ws, "SIGINT");
               }
               return false;
             }
             return true;
           });
-
-          connHost.term.loadAddon(new AttachAddon(ws));
           connHost.ws = ws;
           connHost.is_close = false;
           connHost.term.focus();
