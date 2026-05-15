@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"gossh/app/model"
 	"gossh/app/utils"
@@ -310,18 +309,7 @@ func NewSshConn(c *gin.Context) {
 	}
 
 	// 创建一个适配器来实现 io.Reader 和 io.Writer 接口
-	wsReadWriter := &WebSocketReadWriter{
-		ws: ws,
-		signalFunc: func(sig string) {
-			switch sig {
-			case "SIGINT":
-				// 直接通过 SSH 信道投递 SIGINT，用于 raw 模式下 ISIG=0 的进程（如 top）。
-				if err := conn.sshSession.Signal(ssh.SIGINT); err != nil {
-					slog.Error("sshSession.Signal SIGINT error:", "err_msg", err)
-				}
-			}
-		},
-	}
+	wsReadWriter := &WebSocketReadWriter{ws: ws}
 
 	err = conn.RunTerminal(conn.Shell, wsReadWriter, wsReadWriter, wsReadWriter, w, h, ws)
 	if err != nil {
@@ -333,34 +321,16 @@ func NewSshConn(c *gin.Context) {
 
 // WebSocketReadWriter 实现 io.Reader 和 io.Writer 接口
 type WebSocketReadWriter struct {
-	ws         *websocket.Conn
-	signalFunc func(string)
-}
-
-type wsCtrlMsg struct {
-	Type   string `json:"type"`
-	Signal string `json:"signal"`
+	ws *websocket.Conn
 }
 
 func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
-	for {
-		msgType, message, err := w.ws.ReadMessage()
-		if err != nil {
-			return 0, err
-		}
-		// 文本消息且以 '{' 开头，尝试解析为控制指令（如 SSH 信号请求）。
-		if msgType == websocket.TextMessage && len(message) > 0 && message[0] == '{' {
-			var ctrl wsCtrlMsg
-			if json.Unmarshal(message, &ctrl) == nil && ctrl.Type == "signal" {
-				if w.signalFunc != nil {
-					w.signalFunc(ctrl.Signal)
-				}
-				continue
-			}
-		}
-		copy(p, message)
-		return len(message), nil
+	_, message, err := w.ws.ReadMessage()
+	if err != nil {
+		return 0, err
 	}
+	copy(p, message)
+	return len(message), nil
 }
 
 func (w *WebSocketReadWriter) Write(p []byte) (n int, err error) {

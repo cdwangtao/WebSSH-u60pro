@@ -640,6 +640,21 @@ interface Host {
   is_close: boolean;
 }
 
+function isTopScreen(term: Terminal): boolean {
+  const buffer = term.buffer.active;
+  const visibleStart = Math.max(0, buffer.baseY);
+  const visibleEnd = Math.min(buffer.length, visibleStart + Math.min(term.rows, 12));
+  const lines: string[] = [];
+
+  for (let i = visibleStart; i < visibleEnd; i++) {
+    lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
+  }
+
+  const text = lines.join("\n");
+  return /^\s*top\s+-/im.test(text) ||
+    (/load average:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text));
+}
+
 /**
  * 表单验证
  */
@@ -1651,12 +1666,13 @@ function connectHost(host: Host, isReconnect: boolean = false) {
                 return true;
               }
               if (ws.readyState === WebSocket.OPEN) {
-                // 发送 ETX 给 PTY cooked 模式下的进程（如 ping），ISIG=1 时 PTY 行规转换为 SIGINT。
+                if (isTopScreen(connHost.term)) {
+                  // top 接管终端输入后不一定响应 ETX，发送 q 使用它自身的退出键。
+                  ws.send("q");
+                  return false;
+                }
+                // 发送 ETX 给 PTY cooked 模式下的进程，ISIG=1 时 PTY 行规转换为 SIGINT。
                 ws.send("\x03");
-                // 额外发 SSH 信号请求，用于 raw 模式下的进程（如 top）：
-                // top 运行时调用 cfmakeraw() 使 ISIG=0，PTY 不会将 \x03 转为 SIGINT，
-                // 需要后端通过 SSH 信道直接投递 SIGINT 信号，绕过 PTY 行规。
-                ws.send(JSON.stringify({ type: "signal", signal: "SIGINT" }));
               }
               return false;
             }
