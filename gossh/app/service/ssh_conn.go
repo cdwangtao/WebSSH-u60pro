@@ -418,9 +418,11 @@ func buildRemoteTTYBootstrapCommand(ttyFile string) string {
 func buildRemoteTTYInterruptCommand(ttyFile string) string {
 	quotedTTYFile := shellQuote(ttyFile)
 	return "tty_id=$(sed -n '2p' " + quotedTTYFile + " 2>/dev/null); " +
-		"[ -n \"$tty_id\" ] || exit 0; " +
-		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | " +
-		"awk -v tty=\"$tty_id\" '$3==tty && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" {print $1}'); " +
+		"if [ -n \"$tty_id\" ]; then " +
+		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | awk -v tty=\"$tty_id\" '$3==tty && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" {print $1}'); " +
+		"else " +
+		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | awk '$3!=\"?\" && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" && $5!=\"askfirst\" {pid=$1} END{if(pid) print pid}'); " +
+		"fi; " +
 		"[ -n \"$pids\" ] || exit 0; " +
 		"kill $pids 2>/dev/null || kill -TERM $pids 2>/dev/null"
 }
