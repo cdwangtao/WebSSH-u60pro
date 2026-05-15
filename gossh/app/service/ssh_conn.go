@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"gossh/app/model"
@@ -45,8 +44,6 @@ type SshConn struct {
 
 	// websocket 连接
 	ws *websocket.Conn
-
-	remoteTTYFile string
 }
 
 var wsWriteBufferPool = &sync.Pool{}
@@ -164,7 +161,6 @@ func (s *SshConn) RunTerminal(shell string, stdout, stderr io.Writer, stdin io.R
 	var err error
 
 	s.ws = ws
-	s.remoteTTYFile = "/tmp/webssh_tty_" + s.SessionId
 	s.sshSession.Stdout = stdout
 	s.sshSession.Stderr = stderr
 	s.sshSession.Stdin = stdin
@@ -314,20 +310,7 @@ func NewSshConn(c *gin.Context) {
 	}
 
 	// 创建一个适配器来实现 io.Reader 和 io.Writer 接口
-	conn.remoteTTYFile = "/tmp/webssh_tty_" + conn.SessionId
-	wsReadWriter := &WebSocketReadWriter{
-		ws:     ws,
-		prefix: []byte(buildRemoteTTYBootstrapCommand(conn.remoteTTYFile)),
-		signalFunc: func(sig string, program string) {
-			switch sig {
-			case "SIGINT":
-				if err := conn.sshSession.Signal(ssh.SIGINT); err != nil {
-					slog.Error("sshSession.Signal SIGINT error:", "err_msg", err)
-				}
-				go conn.interruptRemoteTTY()
-			}
-		},
-	}
+	wsReadWriter := &WebSocketReadWriter{ws: ws}
 
 	err = conn.RunTerminal(conn.Shell, wsReadWriter, wsReadWriter, wsReadWriter, w, h, ws)
 	if err != nil {
@@ -339,45 +322,16 @@ func NewSshConn(c *gin.Context) {
 
 // WebSocketReadWriter 实现 io.Reader 和 io.Writer 接口
 type WebSocketReadWriter struct {
-	ws         *websocket.Conn
-	signalFunc func(string, string)
-	prefix     []byte
-	prefixPos  int
-}
-
-type wsCtrlMsg struct {
-	Type    string `json:"type"`
-	Signal  string `json:"signal"`
-	Program string `json:"program"`
+	ws *websocket.Conn
 }
 
 func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
-	if w.prefixPos < len(w.prefix) {
-		n = copy(p, w.prefix[w.prefixPos:])
-		w.prefixPos += n
-		return n, nil
+	_, message, err := w.ws.ReadMessage()
+	if err != nil {
+		return 0, err
 	}
-
-	for {
-		msgType, message, err := w.ws.ReadMessage()
-		if err != nil {
-			return 0, err
-		}
-		if msgType == websocket.TextMessage {
-			var ctrl wsCtrlMsg
-			if json.Unmarshal(message, &ctrl) == nil && ctrl.Type == "signal" {
-				if w.signalFunc != nil {
-					w.signalFunc(ctrl.Signal, ctrl.Program)
-				}
-				continue
-			}
-		}
-		if bytes.Contains(message, []byte{0x03}) && w.signalFunc != nil {
-			w.signalFunc("SIGINT", "")
-		}
-		copy(p, message)
-		return len(message), nil
-	}
+	copy(p, message)
+	return len(message), nil
 }
 
 func (w *WebSocketReadWriter) Write(p []byte) (n int, err error) {
@@ -386,52 +340,6 @@ func (w *WebSocketReadWriter) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
-}
-
-func (s *SshConn) interruptRemoteTTY() {
-	if s == nil || s.sshClient == nil {
-		return
-	}
-
-	session, err := s.sshClient.NewSession()
-	if err != nil {
-		slog.Error("interrupt top NewSession error:", "err_msg", err)
-		return
-	}
-	defer session.Close()
-
-	cmd := buildRemoteTTYInterruptCommand(s.remoteTTYFile)
-	if err := session.Run(cmd); err != nil {
-		slog.Error("interrupt remote tty command error:", "err_msg", err)
-	}
-}
-
-func buildRemoteTTYBootstrapCommand(ttyFile string) string {
-	return "stty -echo 2>/dev/null\n" +
-		"_webssh_tty_path=$(tty 2>/dev/null); " +
-		"_webssh_tty_id=$(ls -l \"$_webssh_tty_path\" 2>/dev/null | awk '{gsub(\",\", \"\", $5); print $5 \",\" $6}'); " +
-		"printf '%s\\n%s\\n' \"$_webssh_tty_path\" \"$_webssh_tty_id\" > " + shellQuote(ttyFile) + "; " +
-		"unset _webssh_tty_path _webssh_tty_id\n" +
-		"stty echo 2>/dev/null\n"
-}
-
-func buildRemoteTTYInterruptCommand(ttyFile string) string {
-	quotedTTYFile := shellQuote(ttyFile)
-	return "tty_id=$(sed -n '2p' " + quotedTTYFile + " 2>/dev/null); " +
-		"if [ -n \"$tty_id\" ]; then " +
-		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | awk -v tty=\"$tty_id\" '$3==tty && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" {print $1}'); " +
-		"else " +
-		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | awk '$3!=\"?\" && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" && $5!=\"askfirst\" {pid=$1} END{if(pid) print pid}'); " +
-		"fi; " +
-		"[ -n \"$pids\" ] || exit 0; " +
-		"kill $pids 2>/dev/null || kill -TERM $pids 2>/dev/null"
-}
-
-func shellQuote(s string) string {
-	if s == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
 func CreateSessionId(c *gin.Context) {

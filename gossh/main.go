@@ -601,6 +601,11 @@ func main() {
 		auth.POST("/api/sys/config", service.SetRunConf)
 	}
 
+	{ // 主题多端同步
+		auth.GET("/api/theme", service.GetTheme)
+		auth.POST("/api/theme", service.SetTheme)
+	}
+
 	{ // 系统更新
 		auth.GET("/api/update/version", UpdateVersionHandler)
 		auth.POST("/api/update/run", UpdateRunHandler)

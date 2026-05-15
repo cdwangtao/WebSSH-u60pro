@@ -124,9 +124,7 @@ func (s *Server) handleRequests(connection ssh.Channel, requests <-chan *ssh.Req
 	// prepare to handle client requests
 	env := os.Environ()
 	resizes := make(chan []byte, 10)
-	signals := make(chan ssh.Signal, 10)
 	defer close(resizes)
-	defer close(signals)
 
 	for req := range requests {
 		switch req.Type {
@@ -159,16 +157,6 @@ func (s *Server) handleRequests(connection ssh.Channel, requests <-chan *ssh.Req
 			req.Reply(true, nil)
 		case "window-change":
 			resizes <- req.Payload
-		case "signal":
-			e := struct{ Signal string }{}
-			_ = ssh.Unmarshal(req.Payload, &e)
-			switch ssh.Signal(e.Signal) {
-			case ssh.SIGINT:
-				signals <- ssh.SIGINT
-				req.Reply(true, nil)
-			default:
-				req.Reply(false, nil)
-			}
 		case "env":
 			e := struct{ Name, Value string }{}
 			_ = ssh.Unmarshal(req.Payload, &e)
@@ -182,7 +170,7 @@ func (s *Server) handleRequests(connection ssh.Channel, requests <-chan *ssh.Req
 				slog.Info("shell command ignored", "payload", req.Payload)
 			}
 			slog.Info("sshd attachShell")
-			err := s.attachShell(connection, env, resizes, signals)
+			err := s.attachShell(connection, env, resizes)
 			if err != nil {
 				slog.Error("exec shell", "err", err)
 			}
@@ -225,7 +213,7 @@ func (s *Server) keepAlive(connection ssh.Channel, interval time.Duration, ticki
 	}
 }
 
-func (s *Server) attachShell(connection ssh.Channel, env []string, resizes <-chan []byte, signals <-chan ssh.Signal) error {
+func (s *Server) attachShell(connection ssh.Channel, env []string, resizes <-chan []byte) error {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Printf("recovered from panic in handleRequests: %s", err)
@@ -260,13 +248,6 @@ func (s *Server) attachShell(connection ssh.Channel, env []string, resizes <-cha
 		for payload := range resizes {
 			w, h := parseDims(payload)
 			SetWindowSize(shellPty, w, h)
-		}
-	}()
-	go func() {
-		for sig := range signals {
-			if err := signalPtyForeground(shellPty, shell.Process, sig); err != nil {
-				slog.Error("signal pty foreground failed", "signal", sig, "err", err)
-			}
 		}
 	}()
 	//pipe session to shell and visa-versa
