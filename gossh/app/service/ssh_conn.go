@@ -389,7 +389,7 @@ func (s *SshConn) interruptRemoteTop() {
 	}
 	defer session.Close()
 
-	cmd := "pkill -INT -x top 2>/dev/null || killall -INT top 2>/dev/null || pkill -TERM -x top 2>/dev/null || killall -TERM top 2>/dev/null"
+	cmd := "killall top 2>/dev/null || pkill -TERM -x top 2>/dev/null || killall -TERM top 2>/dev/null"
 	if err := session.Run(cmd); err != nil {
 		slog.Error("interrupt top command error:", "err_msg", err)
 	}
