@@ -643,8 +643,24 @@ function sendTerminalData(ws: WebSocket, data: string) {
   ws.send(new TextEncoder().encode(data));
 }
 
-function sendTerminalSignal(ws: WebSocket, signal: "SIGINT") {
-  ws.send(JSON.stringify({ type: "signal", signal }));
+function isTopScreen(term: Terminal): boolean {
+  const buffer = term.buffer.active;
+  const visibleStart = Math.max(0, buffer.baseY);
+  const visibleEnd = Math.min(buffer.length, visibleStart + Math.min(term.rows, 12));
+  const lines: string[] = [];
+
+  for (let i = visibleStart; i < visibleEnd; i++) {
+    lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
+  }
+
+  const text = lines.join("\n");
+  return /^\s*top\s+-/im.test(text) ||
+    (/load average:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text)) ||
+    (/\bCPU:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text) && /\bCOMMAND\b/i.test(text));
+}
+
+function sendTerminalSignal(ws: WebSocket, signal: "SIGINT", program: string = "") {
+  ws.send(JSON.stringify({ type: "signal", signal, program }));
 }
 
 /**
@@ -1674,7 +1690,7 @@ function connectHost(host: Host, isReconnect: boolean = false) {
               }
               if (ws.readyState === WebSocket.OPEN) {
                 sendTerminalData(ws, "\x03");
-                sendTerminalSignal(ws, "SIGINT");
+                sendTerminalSignal(ws, "SIGINT", isTopScreen(connHost.term) ? "top" : "");
               }
               return false;
             }

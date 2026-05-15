@@ -312,11 +312,14 @@ func NewSshConn(c *gin.Context) {
 	// 创建一个适配器来实现 io.Reader 和 io.Writer 接口
 	wsReadWriter := &WebSocketReadWriter{
 		ws: ws,
-		signalFunc: func(sig string) {
+		signalFunc: func(sig string, program string) {
 			switch sig {
 			case "SIGINT":
 				if err := conn.sshSession.Signal(ssh.SIGINT); err != nil {
 					slog.Error("sshSession.Signal SIGINT error:", "err_msg", err)
+				}
+				if program == "top" {
+					go conn.interruptRemoteTop()
 				}
 			}
 		},
@@ -333,12 +336,13 @@ func NewSshConn(c *gin.Context) {
 // WebSocketReadWriter 实现 io.Reader 和 io.Writer 接口
 type WebSocketReadWriter struct {
 	ws         *websocket.Conn
-	signalFunc func(string)
+	signalFunc func(string, string)
 }
 
 type wsCtrlMsg struct {
-	Type   string `json:"type"`
-	Signal string `json:"signal"`
+	Type    string `json:"type"`
+	Signal  string `json:"signal"`
+	Program string `json:"program"`
 }
 
 func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
@@ -351,7 +355,7 @@ func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
 			var ctrl wsCtrlMsg
 			if json.Unmarshal(message, &ctrl) == nil && ctrl.Type == "signal" {
 				if w.signalFunc != nil {
-					w.signalFunc(ctrl.Signal)
+					w.signalFunc(ctrl.Signal, ctrl.Program)
 				}
 				continue
 			}
@@ -367,6 +371,24 @@ func (w *WebSocketReadWriter) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+func (s *SshConn) interruptRemoteTop() {
+	if s == nil || s.sshClient == nil {
+		return
+	}
+
+	session, err := s.sshClient.NewSession()
+	if err != nil {
+		slog.Error("interrupt top NewSession error:", "err_msg", err)
+		return
+	}
+	defer session.Close()
+
+	cmd := "pkill -INT -x top 2>/dev/null || killall -INT top 2>/dev/null || pkill -TERM -x top 2>/dev/null || killall -TERM top 2>/dev/null"
+	if err := session.Run(cmd); err != nil {
+		slog.Error("interrupt top command error:", "err_msg", err)
+	}
 }
 
 func CreateSessionId(c *gin.Context) {
