@@ -45,6 +45,8 @@ type SshConn struct {
 
 	// websocket 连接
 	ws *websocket.Conn
+
+	remoteTTYFile string
 }
 
 var wsWriteBufferPool = &sync.Pool{}
@@ -162,6 +164,7 @@ func (s *SshConn) RunTerminal(shell string, stdout, stderr io.Writer, stdin io.R
 	var err error
 
 	s.ws = ws
+	s.remoteTTYFile = "/tmp/webssh_tty_" + s.SessionId
 	s.sshSession.Stdout = stdout
 	s.sshSession.Stderr = stderr
 	s.sshSession.Stdin = stdin
@@ -172,7 +175,7 @@ func (s *SshConn) RunTerminal(shell string, stdout, stderr io.Writer, stdin io.R
 		return err
 	}
 
-	if err = s.sshSession.Shell(); err != nil {
+	if err = s.sshSession.Start(buildRemoteShellCommand(shell, s.remoteTTYFile)); err != nil {
 		slog.Error("sshSession.Shell error:", "err_msg", err.Error())
 		return err
 	}
@@ -319,9 +322,7 @@ func NewSshConn(c *gin.Context) {
 				if err := conn.sshSession.Signal(ssh.SIGINT); err != nil {
 					slog.Error("sshSession.Signal SIGINT error:", "err_msg", err)
 				}
-				if program == "top" {
-					go conn.interruptRemoteTop()
-				}
+				go conn.interruptRemoteTTY()
 			}
 		},
 	}
@@ -362,7 +363,7 @@ func (w *WebSocketReadWriter) Read(p []byte) (n int, err error) {
 			}
 		}
 		if bytes.Contains(message, []byte{0x03}) && w.signalFunc != nil {
-			w.signalFunc("SIGINT", "top")
+			w.signalFunc("SIGINT", "")
 		}
 		copy(p, message)
 		return len(message), nil
@@ -377,7 +378,7 @@ func (w *WebSocketReadWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *SshConn) interruptRemoteTop() {
+func (s *SshConn) interruptRemoteTTY() {
 	if s == nil || s.sshClient == nil {
 		return
 	}
@@ -389,10 +390,37 @@ func (s *SshConn) interruptRemoteTop() {
 	}
 	defer session.Close()
 
-	cmd := "killall top 2>/dev/null || pkill -TERM -x top 2>/dev/null || killall -TERM top 2>/dev/null"
+	cmd := buildRemoteTTYInterruptCommand(s.remoteTTYFile)
 	if err := session.Run(cmd); err != nil {
-		slog.Error("interrupt top command error:", "err_msg", err)
+		slog.Error("interrupt remote tty command error:", "err_msg", err)
 	}
+}
+
+func buildRemoteShellCommand(shell string, ttyFile string) string {
+	if strings.TrimSpace(shell) == "" {
+		shell = "sh"
+	}
+	return "tty_path=$(tty 2>/dev/null); " +
+		"tty_id=$(ls -l \"$tty_path\" 2>/dev/null | awk '{gsub(\",\", \"\", $5); print $5 \",\" $6}'); " +
+		"printf '%s\\n%s\\n' \"$tty_path\" \"$tty_id\" > " + shellQuote(ttyFile) + "; " +
+		"exec \"${SHELL:-" + shell + "}\""
+}
+
+func buildRemoteTTYInterruptCommand(ttyFile string) string {
+	quotedTTYFile := shellQuote(ttyFile)
+	return "tty_id=$(sed -n '2p' " + quotedTTYFile + " 2>/dev/null); " +
+		"[ -n \"$tty_id\" ] || exit 0; " +
+		"pids=$(ps -o pid,ppid,tty,stat,comm,args 2>/dev/null | " +
+		"awk -v tty=\"$tty_id\" '$3==tty && $5!=\"sh\" && $5!=\"ash\" && $5!=\"bash\" && $5!=\"zsh\" {print $1}'); " +
+		"[ -n \"$pids\" ] || exit 0; " +
+		"kill $pids 2>/dev/null || kill -TERM $pids 2>/dev/null"
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
 func CreateSessionId(c *gin.Context) {
