@@ -644,16 +644,9 @@ function sendTerminalData(ws: WebSocket, data: string) {
 }
 
 function isTopScreen(term: Terminal): boolean {
-  const buffer = term.buffer.active;
-  const visibleStart = Math.max(0, buffer.baseY);
-  const visibleEnd = Math.min(buffer.length, visibleStart + Math.min(term.rows, 12));
-  const lines: string[] = [];
-
-  for (let i = visibleStart; i < visibleEnd; i++) {
-    lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
-  }
-
-  const text = lines.join("\n");
+  const element = term.element;
+  const rows = element ? Array.from(element.querySelectorAll(".xterm-rows > div")) : [];
+  const text = rows.slice(0, 12).map((row) => row.textContent ?? "").join("\n");
   return /^\s*top\s+-/im.test(text) ||
     (/load average:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text)) ||
     (/\bCPU:/i.test(text) && /\bPID\s+(?:PPID\s+)?USER\b/i.test(text) && /\bCOMMAND\b/i.test(text));
