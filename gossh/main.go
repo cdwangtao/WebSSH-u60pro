@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -178,6 +180,7 @@ func UpdateVersionHandler(c *gin.Context) {
 }
 
 var PROXIES = []string{
+	"", // 直连
 	"https://v6.gh-proxy.org/",
 	"https://gh-proxy.org/",
 	"https://hk.gh-proxy.org/",
@@ -185,8 +188,329 @@ var PROXIES = []string{
 	"https://edgeone.gh-proxy.org/",
 	"https://fastgit.cc/",
 	"https://git.yylx.win/",
-	"https://gh.llkk.cc/",
 	"https://ghfast.top/",
+}
+
+// DownloadProgress 下载进度
+type DownloadProgress struct {
+	Downloaded int64  `json:"downloaded"`
+	Total      int64  `json:"total"`
+	Percent    int    `json:"percent"`
+	Status     string `json:"status"` // idle | downloading | success | failed | restarting
+	Message    string `json:"message"`
+	Proxy      string `json:"proxy"`
+}
+
+var currentDownloadProgress = DownloadProgress{Status: "idle"}
+
+// ProgressWriter 边写边更新全局进度
+type ProgressWriter struct {
+	Total      int64
+	Downloaded int64
+}
+
+func (pw *ProgressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.Downloaded += int64(n)
+	currentDownloadProgress.Downloaded = pw.Downloaded
+	if pw.Total > 0 {
+		currentDownloadProgress.Total = pw.Total
+		currentDownloadProgress.Percent = int(float64(pw.Downloaded) / float64(pw.Total) * 100)
+	}
+	return n, nil
+}
+
+// downloadFileWithProxy 使用指定代理下载，空字符串为直连
+func downloadFileWithProxy(url string, savePath string, proxy string) error {
+	targetURL := url
+	if proxy != "" {
+		trimmed := strings.TrimPrefix(url, "https://")
+		p := proxy
+		if !strings.HasSuffix(p, "/") {
+			p += "/"
+		}
+		targetURL = p + trimmed
+	}
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+
+	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	if err != nil {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = "构建请求失败: " + err.Error()
+		return err
+	}
+	req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = "请求失败: " + err.Error()
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	out, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = "创建文件失败: " + err.Error()
+		return err
+	}
+	defer out.Close()
+
+	pw := &ProgressWriter{Total: resp.ContentLength}
+	currentDownloadProgress.Total = resp.ContentLength
+	if _, err := io.Copy(io.MultiWriter(out, pw), resp.Body); err != nil {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = "下载失败: " + err.Error()
+		return err
+	}
+
+	info, err := os.Stat(savePath)
+	if err != nil || info.Size() <= 0 {
+		currentDownloadProgress.Status = "failed"
+		currentDownloadProgress.Message = "下载文件为空"
+		return fmt.Errorf("下载文件为空")
+	}
+
+	currentDownloadProgress.Status = "success"
+	currentDownloadProgress.Percent = 100
+	currentDownloadProgress.Message = "下载完成"
+	return nil
+}
+
+// UpdateProxiesHandler 获取代理列表
+func UpdateProxiesHandler(c *gin.Context) {
+	type ProxyInfo struct {
+		URL  string `json:"url"`
+		Name string `json:"name"`
+	}
+
+	proxies := make([]ProxyInfo, 0, len(PROXIES))
+	for _, p := range PROXIES {
+		name := p
+		if p == "" {
+			name = "直连"
+		}
+		proxies = append(proxies, ProxyInfo{URL: p, Name: name})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "ok",
+		"data": proxies,
+	})
+}
+
+// UpdateProgressHandler 获取下载进度
+func UpdateProgressHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "ok",
+		"data": currentDownloadProgress,
+	})
+}
+
+// UpdateDownloadHandler 使用指定代理下载并触发更新
+func UpdateDownloadHandler(c *gin.Context) {
+	var req struct {
+		Proxy string `json:"proxy"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "参数错误: " + err.Error()})
+		return
+	}
+
+	if currentDownloadProgress.Status == "downloading" {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "正在下载，请稍候"})
+		return
+	}
+
+	currentDownloadProgress = DownloadProgress{
+		Status:  "downloading",
+		Message: "准备下载...",
+		Proxy:   req.Proxy,
+	}
+
+	go func() {
+		release, err := getLatestGithubRelease()
+		if err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "获取版本信息失败: " + err.Error()
+			return
+		}
+
+		currentVersion := strings.TrimSpace(version)
+		latestVersion := strings.TrimSpace(release.TagName)
+		if currentVersion == latestVersion {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "当前已是最新版本"
+			return
+		}
+
+		asset, err := selectUpdateAsset(release)
+		if err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = err.Error()
+			return
+		}
+
+		currentBin, err := os.Executable()
+		if err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "获取当前二进制路径失败: " + err.Error()
+			return
+		}
+		currentBin, err = filepath.EvalSymlinks(currentBin)
+		if err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "解析当前二进制真实路径失败: " + err.Error()
+			return
+		}
+
+		tmpNewBin := filepath.Join(os.TempDir(), fmt.Sprintf("webssh_%s_%s.new", runtime.GOARCH, latestVersion))
+		logFile := filepath.Join(os.TempDir(), "webssh_update.log")
+
+		if err := downloadFileWithProxy(asset.BrowserDownloadURL, tmpNewBin, req.Proxy); err != nil {
+			return
+		}
+
+		if err := os.Chmod(tmpNewBin, 0755); err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "设置新二进制权限失败: " + err.Error()
+			return
+		}
+
+		scriptPath, err := createTempUpdateScript(currentBin, tmpNewBin, logFile, os.Args)
+		if err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "创建临时更新脚本失败: " + err.Error()
+			return
+		}
+
+		cmd := exec.Command("/bin/sh", scriptPath)
+		if err := cmd.Start(); err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = "启动临时更新脚本失败: " + err.Error()
+			return
+		}
+
+		currentDownloadProgress.Status = "restarting"
+		currentDownloadProgress.Message = "程序即将重启"
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "已开始下载更新"})
+}
+
+// UpdateTestSpeedHandler 并发测试代理下载速度，整体 3 秒兜底
+func UpdateTestSpeedHandler(c *gin.Context) {
+	var req struct {
+		URL     string   `json:"url"`     // 要测试的文件 URL
+		Proxies []string `json:"proxies"` // 可选，仅测指定代理；为空则测全部内置代理
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "参数错误: " + err.Error()})
+		return
+	}
+	if req.URL == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "URL 不能为空"})
+		return
+	}
+
+	type SpeedTestResult struct {
+		Proxy    string  `json:"proxy"`
+		Name     string  `json:"name"`
+		Speed    float64 `json:"speed"`    // KB/s
+		Duration int64   `json:"duration"` // ms
+		Success  bool    `json:"success"`
+		Error    string  `json:"error"`
+	}
+
+	proxiesToTest := PROXIES
+	if len(req.Proxies) > 0 {
+		proxiesToTest = req.Proxies
+	}
+	results := make([]SpeedTestResult, len(proxiesToTest))
+	testSize := int64(1024 * 10) // 10KB
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for idx, proxy := range proxiesToTest {
+		wg.Add(1)
+		go func(i int, proxy string) {
+			defer wg.Done()
+			result := SpeedTestResult{Proxy: proxy, Name: proxy}
+			if proxy == "" {
+				result.Name = "直连"
+			}
+
+			testURL := req.URL
+			if proxy != "" {
+				trimmed := strings.TrimPrefix(req.URL, "https://")
+				p := proxy
+				if !strings.HasSuffix(p, "/") {
+					p += "/"
+				}
+				testURL = p + trimmed
+			}
+
+			startTime := time.Now()
+			client := &http.Client{Timeout: 2500 * time.Millisecond}
+
+			reqHTTP, err := http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+			if err != nil {
+				result.Error = err.Error()
+				results[i] = result
+				return
+			}
+			reqHTTP.Header.Set("Range", fmt.Sprintf("bytes=0-%d", testSize-1))
+			reqHTTP.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+			resp, err := client.Do(reqHTTP)
+			if err != nil {
+				result.Error = err.Error()
+				results[i] = result
+				return
+			}
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+				resp.Body.Close()
+				result.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)
+				results[i] = result
+				return
+			}
+
+			downloaded, err := io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			duration := time.Since(startTime)
+
+			if err != nil {
+				result.Error = err.Error()
+				results[i] = result
+				return
+			}
+			if duration.Seconds() > 0 {
+				result.Speed = float64(downloaded) / 1024 / duration.Seconds()
+			}
+			result.Duration = duration.Milliseconds()
+			result.Success = true
+			results[i] = result
+		}(idx, proxy)
+	}
+	wg.Wait()
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "ok",
+		"data": results,
+	})
 }
 
 // downloadFile 支持直连和代理，每次请求单独超时
@@ -195,6 +519,9 @@ func downloadFile(url string, savePath string) error {
 	tryURLs := append([]string{url}, func() []string {
 		var proxied []string
 		for _, p := range PROXIES {
+			if p == "" {
+				continue // 直连已在首位
+			}
 			trimmed := strings.TrimPrefix(url, "https://")
 			if !strings.HasSuffix(p, "/") {
 				p += "/"
@@ -613,6 +940,10 @@ func main() {
 	{ // 系统更新
 		auth.GET("/api/update/version", UpdateVersionHandler)
 		auth.POST("/api/update/run", UpdateRunHandler)
+		auth.GET("/api/update/proxies", UpdateProxiesHandler)
+		auth.GET("/api/update/progress", UpdateProgressHandler)
+		auth.POST("/api/update/download", UpdateDownloadHandler)
+		auth.POST("/api/update/test-speed", UpdateTestSpeedHandler)
 	}
 	{
 		// 开启 ADB 等调试端口
