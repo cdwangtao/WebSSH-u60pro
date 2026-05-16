@@ -226,6 +226,154 @@
               </template>
             </el-dialog>
 
+            <!-- 更新代理选择对话框 -->
+            <el-dialog
+              v-model="data.update_proxy_dialog_visible"
+              title="选择下载代理"
+              custom-class="modern-dialog"
+              style="max-width: 600px;"
+              width="95%"
+              center
+            >
+              <div v-if="updateVersionInfo">
+                <el-descriptions :column="1" border>
+                  <el-descriptions-item label="当前版本">{{ updateVersionInfo.current_version }}</el-descriptions-item>
+                  <el-descriptions-item label="最新版本">{{ updateVersionInfo.latest_version }}</el-descriptions-item>
+                  <el-descriptions-item label="更新文件">{{ updateVersionInfo.asset_name || "-" }}</el-descriptions-item>
+                  <el-descriptions-item label="文件大小">{{ (updateVersionInfo.asset_size / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
+                </el-descriptions>
+
+                <el-form style="margin-top: 20px;">
+                  <el-form-item>
+                    <el-checkbox v-model="useCustomProxy">自定义</el-checkbox>
+                    <span v-if="isTestingSpeed && !useCustomProxy" style="margin-left: 10px; color: #409eff; font-size: 12px;">
+                      <el-icon class="is-loading"><Loading /></el-icon> 测速中...
+                    </span>
+                  </el-form-item>
+
+                  <!-- 自定义代理输入 + 测试过程 -->
+                  <template v-if="useCustomProxy">
+                    <el-form-item label="代理地址">
+                      <el-input
+                        v-model="customProxyUrl"
+                        placeholder="https://your-proxy/   留空表示直连"
+                        clearable
+                        :disabled="customTestStatus === 'testing'"
+                      />
+                    </el-form-item>
+
+                    <el-form-item v-if="customTestStatus !== 'idle'">
+                      <div style="width: 100%;">
+                        <el-tag v-if="customTestStatus === 'testing'" type="info">
+                          <el-icon class="is-loading" style="vertical-align: middle;"><Loading /></el-icon>
+                          {{ customTestMessage }}
+                        </el-tag>
+                        <el-tag v-else-if="customTestStatus === 'success'" type="success">
+                          ✓ {{ customTestMessage }}
+                        </el-tag>
+                        <el-tag v-else-if="customTestStatus === 'failed'" type="danger">
+                          ✗ {{ customTestMessage }}
+                        </el-tag>
+                      </div>
+                    </el-form-item>
+                  </template>
+
+                  <!-- 内置代理选择 -->
+                  <el-form-item v-else label="下载代理">
+                    <el-select v-model="selectedProxy" placeholder="请选择代理" style="width: 100%;">
+                      <el-option
+                        v-for="proxy in updateProxies"
+                        :key="proxy.url"
+                        :label="proxy.name"
+                        :value="proxy.url"
+                      >
+                        <span>{{ proxy.name }}</span>
+                        <span v-if="speedTestResults.length > 0" style="float: right; color: #8492a6; font-size: 13px;">
+                          <template v-for="result in speedTestResults" :key="result.proxy">
+                            <span v-if="result.proxy === proxy.url && result.success" style="color: #67c23a;">
+                              {{ result.speed.toFixed(0) }} KB/s
+                            </span>
+                            <span v-else-if="result.proxy === proxy.url && !result.success" style="color: #f56c6c;">
+                              ✗
+                            </span>
+                          </template>
+                        </span>
+                      </el-option>
+                    </el-select>
+                  </el-form-item>
+                </el-form>
+              </div>
+              <template #footer>
+                <div class="dialog-footer">
+                  <el-button @click="data.update_proxy_dialog_visible = false">取消</el-button>
+                  <template v-if="useCustomProxy">
+                    <el-button
+                      type="primary"
+                      @click="testCustomProxyAndDownload"
+                      :loading="customTestStatus === 'testing'"
+                      :disabled="customTestStatus === 'testing'"
+                    >
+                      测试并下载
+                    </el-button>
+                  </template>
+                  <template v-else>
+                    <el-button @click="testProxySpeed" :loading="isTestingSpeed" :disabled="isTestingSpeed">
+                      重新测速
+                    </el-button>
+                    <el-button type="primary" @click="startUpdate()" :disabled="isTestingSpeed">开始更新</el-button>
+                  </template>
+                </div>
+              </template>
+            </el-dialog>
+
+            <!-- 更新进度对话框 -->
+            <el-dialog
+              v-model="data.update_progress_dialog_visible"
+              title="更新进度"
+              custom-class="modern-dialog"
+              style="max-width: 500px;"
+              width="95%"
+              center
+              :close-on-click-modal="false"
+              :close-on-press-escape="false"
+            >
+              <div>
+                <el-descriptions :column="1" border>
+                  <el-descriptions-item label="状态">
+                    <el-tag v-if="updateProgress.status === 'downloading'" type="primary">下载中</el-tag>
+                    <el-tag v-else-if="updateProgress.status === 'success'" type="success">下载完成</el-tag>
+                    <el-tag v-else-if="updateProgress.status === 'failed'" type="danger">下载失败</el-tag>
+                    <el-tag v-else-if="updateProgress.status === 'restarting'" type="warning">重启中</el-tag>
+                    <el-tag v-else type="info">{{ updateProgress.status }}</el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="代理">{{ updateProgress.proxy || "直连" }}</el-descriptions-item>
+                  <el-descriptions-item label="进度">{{ updateProgress.percent }}%</el-descriptions-item>
+                  <el-descriptions-item label="已下载">{{ (updateProgress.downloaded / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
+                  <el-descriptions-item label="总大小">{{ (updateProgress.total / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
+                </el-descriptions>
+
+                <div style="margin-top: 20px;">
+                  <el-progress
+                    :percentage="updateProgress.percent"
+                    :status="updateProgress.status === 'success' ? 'success' : (updateProgress.status === 'failed' ? 'exception' : undefined)"
+                  />
+                  <div style="margin-top: 10px; text-align: center; color: #666;">
+                    {{ updateProgress.message }}
+                  </div>
+                </div>
+              </div>
+              <template #footer>
+                <div class="dialog-footer">
+                  <el-button
+                    @click="closeProgressDialog"
+                    :disabled="updateProgress.status === 'downloading'"
+                  >
+                    {{ updateProgress.status === 'downloading' ? '下载中...' : '关闭' }}
+                  </el-button>
+                </div>
+              </template>
+            </el-dialog>
+
             <!-- SSH主机配置弹窗 -->
             <el-dialog
               :title="data.mode == 0 ? '新增主机' : '更新主机'"
@@ -577,6 +725,7 @@ import {
   Eleme,
   Files,
   FolderOpened,
+  Loading,
   MagicStick,
   Menu,
   Sort,
@@ -723,6 +872,8 @@ let data = reactive({
   modify_devices_dialog_visible: false,
   modify_pwd_dialog_visible: false,
   manage_dialog_visible: false,
+  update_proxy_dialog_visible: false,
+  update_progress_dialog_visible: false,
   dir_info: {} as DirInfo,
   sftp_current_dir: "",
   sftp_upload_percentage: 0,
@@ -776,6 +927,34 @@ function openThemeSettings() {
 // 检查更新
 const chkingUpdate = ref(false);
 
+// "直连" 在 el-select 中需要非空 value，否则会显示 placeholder
+const DIRECT_KEY = "__direct__";
+
+// 更新相关状态
+const updateProxies = ref<Array<{ url: string; name: string }>>([]);
+const selectedProxy = ref("");
+const updateProgress = ref({
+  downloaded: 0,
+  total: 0,
+  percent: 0,
+  status: "idle",
+  message: "",
+  proxy: "",
+});
+const updateVersionInfo = ref<any>(null);
+let progressTimer: any = null;
+
+// 测速相关状态
+const speedTestResults = ref<Array<{ proxy: string; name: string; speed: number; duration: number; success: boolean; error: string }>>([]);
+const isTestingSpeed = ref(false);
+
+// 自定义代理相关状态
+const useCustomProxy = ref(false);
+const customProxyUrl = ref("");
+const customTestStatus = ref<"idle" | "testing" | "success" | "failed">("idle");
+const customTestMessage = ref("");
+const customTestSpeed = ref(0);
+
 async function checkUpdate() {
   if (chkingUpdate.value) return;
 
@@ -796,37 +975,232 @@ async function checkUpdate() {
       return;
     }
 
-    await ElMessageBox.confirm(
-      `
-      当前版本：${info.current_version}
-      最新版本：${info.latest_version}
-      更新文件：${info.asset_name || "-"}
-      
-      确认现在更新吗？
-      `,
-      "发现新版本",
-      {
-        confirmButtonText: "确认更新",
-        cancelButtonText: "取消",
-        type: "warning",
-        dangerouslyUseHTMLString: false,
-      }
-    );
+    updateVersionInfo.value = info;
 
-    await runUpdate();
-  } catch (err: any) {
-    if (err === "cancel" || err === "close") {
-      ElMessage.info("已取消更新");
-      return;
+    // 获取代理列表
+    const proxyRet = await axios.get<ResponseData>("/api/update/proxies");
+    if (proxyRet.data.code === 0) {
+      // 把直连的空 url 映射成 sentinel，避免 el-select 把它当成"未选择"
+      updateProxies.value = (proxyRet.data.data as Array<{ url: string; name: string }>).map((p) => ({
+        ...p,
+        url: p.url === "" ? DIRECT_KEY : p.url,
+      }));
+      selectedProxy.value = updateProxies.value[0]?.url || "";
     }
 
+    // 打开代理选择对话框
+    data.update_proxy_dialog_visible = true;
+
+    // 重置自定义代理状态
+    useCustomProxy.value = false;
+    customTestStatus.value = "idle";
+    customTestMessage.value = "";
+    customTestSpeed.value = 0;
+
+    // 默认对内置代理进行一次测速
+    await testProxySpeed();
+  } catch (err: any) {
     console.log(err);
     ElMessage.error("检测更新异常");
   } finally {
     chkingUpdate.value = false;
   }
 }
-// 执行更新
+
+// 登录后静默检查更新：仅在有新版本时以 tips 提示，无需打扰
+async function silentCheckUpdate() {
+  try {
+    const ret = await axios.get<ResponseData>("/api/update/version");
+    if (ret.data.code !== 0) return;
+
+    const info = ret.data.data;
+    if (!info || !info.has_update) return;
+
+    ElNotification({
+      title: "发现新版本",
+      type: "warning",
+      duration: 8000,
+      dangerouslyUseHTMLString: true,
+      message: `当前版本 <b>${info.current_version}</b><br/>最新版本 <b>${info.latest_version}</b><br/>点击右上角更新按钮进行升级`,
+    });
+  } catch (err) {
+    console.log("静默检查更新失败", err);
+  }
+}
+
+// 测试内置代理速度
+async function testProxySpeed() {
+  if (!updateVersionInfo.value || isTestingSpeed.value) return;
+
+  isTestingSpeed.value = true;
+  speedTestResults.value = [];
+
+  try {
+    const testURL = updateVersionInfo.value.release_url || "https://github.com/cdwangtao/WebSSH-u60pro/releases/latest";
+
+    const ret = await axios.post<ResponseData>("/api/update/test-speed", {
+      url: testURL,
+    });
+
+    if (ret.data.code === 0) {
+      // 同样把直连的空 proxy 映射成 sentinel，方便和 selectedProxy 比较
+      speedTestResults.value = (ret.data.data as Array<any>).map((r) => ({
+        ...r,
+        proxy: r.proxy === "" ? DIRECT_KEY : r.proxy,
+      }));
+
+      const successResults = speedTestResults.value.filter(r => r.success);
+      if (successResults.length > 0) {
+        const fastest = successResults.reduce((prev, current) =>
+          (current.speed > prev.speed) ? current : prev
+        );
+        selectedProxy.value = fastest.proxy;
+        console.log(`自动选择最快代理: ${fastest.name} (${fastest.speed.toFixed(2)} KB/s)`);
+      }
+    }
+  } catch (err) {
+    console.log("测速失败", err);
+  } finally {
+    isTestingSpeed.value = false;
+  }
+}
+
+// 开始更新（使用选择的代理），overrideProxy 用于自定义代理流程
+async function startUpdate(overrideProxy?: string) {
+  data.update_proxy_dialog_visible = false;
+  data.update_progress_dialog_visible = true;
+
+  const proxyForServer = overrideProxy !== undefined
+    ? overrideProxy
+    : (selectedProxy.value === DIRECT_KEY ? "" : selectedProxy.value);
+
+  updateProgress.value = {
+    downloaded: 0,
+    total: 0,
+    percent: 0,
+    status: "downloading",
+    message: "准备下载...",
+    proxy: proxyForServer,
+  };
+
+  try {
+    const ret = await axios.post<ResponseData>("/api/update/download", {
+      proxy: proxyForServer,
+    });
+
+    if (ret.data.code !== 0) {
+      ElMessage.error(ret.data.msg || "启动更新失败");
+      updateProgress.value.status = "failed";
+      updateProgress.value.message = ret.data.msg || "启动更新失败";
+      return;
+    }
+
+    startProgressPolling();
+  } catch (err) {
+    console.log(err);
+    ElMessage.error("执行更新异常");
+    updateProgress.value.status = "failed";
+    updateProgress.value.message = "执行更新异常";
+  }
+}
+
+// 测试自定义代理，通过则自动下载安装
+async function testCustomProxyAndDownload() {
+  const url = customProxyUrl.value.trim();
+  if (!url) {
+    ElMessage.error("请输入自定义代理地址");
+    return;
+  }
+  if (!updateVersionInfo.value) return;
+
+  customTestStatus.value = "testing";
+  customTestMessage.value = "正在测试该代理是否可用...";
+  customTestSpeed.value = 0;
+
+  try {
+    const testURL = updateVersionInfo.value.release_url || "https://github.com/cdwangtao/WebSSH-u60pro/releases/latest";
+
+    const ret = await axios.post<ResponseData>("/api/update/test-speed", {
+      url: testURL,
+      proxies: [url],
+    });
+
+    if (ret.data.code !== 0) {
+      customTestStatus.value = "failed";
+      customTestMessage.value = ret.data.msg || "测试请求失败";
+      return;
+    }
+
+    const result = (ret.data.data as Array<any>)[0];
+    if (!result) {
+      customTestStatus.value = "failed";
+      customTestMessage.value = "未拿到测试结果";
+      return;
+    }
+    if (!result.success) {
+      customTestStatus.value = "failed";
+      customTestMessage.value = `测试失败：${result.error || "未知错误"}`;
+      return;
+    }
+
+    customTestStatus.value = "success";
+    customTestSpeed.value = result.speed;
+    customTestMessage.value = `测试通过：${result.speed.toFixed(0)} KB/s（${result.duration} ms），即将开始下载...`;
+
+    setTimeout(() => {
+      startUpdate(url);
+    }, 600);
+  } catch (err: any) {
+    console.log("自定义代理测试异常", err);
+    customTestStatus.value = "failed";
+    customTestMessage.value = "测试异常：" + (err?.message || String(err));
+  }
+}
+
+// 轮询下载进度
+function startProgressPolling() {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+  }
+  progressTimer = setInterval(async () => {
+    try {
+      const ret = await axios.get<ResponseData>("/api/update/progress");
+      if (ret.data.code === 0) {
+        updateProgress.value = ret.data.data;
+
+        if (updateProgress.value.status === "success" ||
+            updateProgress.value.status === "failed" ||
+            updateProgress.value.status === "restarting") {
+          clearInterval(progressTimer);
+          progressTimer = null;
+
+          if (updateProgress.value.status === "success" ||
+              updateProgress.value.status === "restarting") {
+            ElNotification({
+              title: "更新成功",
+              type: "success",
+              duration: 8000,
+              message: "程序即将重启，请稍后刷新页面",
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.log("获取进度失败", err);
+    }
+  }, 500);
+}
+
+// 关闭进度对话框
+function closeProgressDialog() {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+  data.update_progress_dialog_visible = false;
+}
+
+// 执行更新（旧入口，保留兼容）
 async function runUpdate() {
   try {
     const ret = await axios.post<ResponseData>("/api/update/run");
@@ -1919,6 +2293,8 @@ onMounted(() => {
   window.onbeforeunload = function () {
     return "关闭吗";
   };
+  // 登录后静默检查更新（延迟一下避免阻塞首屏渲染）
+  setTimeout(() => { silentCheckUpdate(); }, 1500);
 });
 
 

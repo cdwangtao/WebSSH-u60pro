@@ -112,6 +112,13 @@ export const useThemeStore = defineStore(
       root.style.setProperty('--theme-overlay-color',
         overlayEnabled.value ? color : 'transparent'
       )
+
+      // 统一通过 CSS 变量管理主题背景色：把当前主题色的深色版写入 --dark-bg-color，
+      // 让 body / html 的背景跟随主题切换，避免在 JS 中直接覆盖样式造成冲突
+      const darkL = Math.max(Math.min(l * 0.45, 18), 6)
+      root.style.setProperty('--dark-bg-color', `hsl(${Math.round(h)}, ${s.toFixed(1)}%, ${darkL.toFixed(1)}%)`)
+      root.style.setProperty('--dark-bg-color-transparent', `hsla(${Math.round(h)}, ${s.toFixed(1)}%, ${darkL.toFixed(1)}%, 0.68)`)
+      root.style.setProperty('--dark-bgi-color', `hsla(${Math.round(h)}, ${s.toFixed(1)}%, ${darkL.toFixed(1)}%, 0.61)`)
     }
 
     function saveToServer() {

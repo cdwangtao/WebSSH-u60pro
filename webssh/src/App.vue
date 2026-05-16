@@ -119,11 +119,10 @@ onBeforeUnmount(() => {
 
 html, body {
   height: 100%;
-}
-
-.el-header,
-.el-footer {
-  background-color: #2b75d6;
+  background-color: var(--dark-bg-color);
+  /* 移动端避免下拉/上拉时露出底层白色 */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .theme-settings-dialog {
