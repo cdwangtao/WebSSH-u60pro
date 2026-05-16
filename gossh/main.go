@@ -10,6 +10,7 @@ import (
 	"gossh/app/model"
 	"gossh/app/service"
 	"gossh/gin"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -17,16 +18,16 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
-	"time"
-	"io"
 	"runtime"
 	"strconv"
+	"strings"
+	"time"
 )
 
-
 var version = "dev"
+
 const GithubRepo = "cdwangtao/WebSSH-u60pro"
+
 type GithubAsset struct {
 	Name               string `json:"name"`
 	Size               int64  `json:"size"`
@@ -175,6 +176,7 @@ func UpdateVersionHandler(c *gin.Context) {
 		"data": info,
 	})
 }
+
 var PROXIES = []string{
 	"https://v6.gh-proxy.org/",
 	"https://gh-proxy.org/",
@@ -440,37 +442,37 @@ func UpdateRunHandler(c *gin.Context) {
 }
 
 func OpenAdbHandler(c *gin.Context) {
-    slog.Info("[API] /api/openadb 调用开始")
+	slog.Info("[API] /api/openadb 调用开始")
 
-    cmd := exec.Command("/sbin/usb/compositions/usb_switch",
-        "0x19d2", "0x1404",
-        "rndis_gsi,diag,serial,modem,ffs,dpl,qdss",
-        "MU5120ZTED0000000",
-    )
+	cmd := exec.Command("/sbin/usb/compositions/usb_switch",
+		"0x19d2", "0x1404",
+		"rndis_gsi,diag,serial,modem,ffs,dpl,qdss",
+		"MU5120ZTED0000000",
+	)
 
-    // 捕获 stdout 和 stderr
-    output, err := cmd.CombinedOutput()
+	// 捕获 stdout 和 stderr
+	output, err := cmd.CombinedOutput()
 
-    // 即使 err != nil，也不直接认为失败，只记录日志
-    if err != nil {
-        slog.Warn("[API] openadb 执行返回非 0，但忽略错误",
-            "err", err.Error(),
-            "output", string(output),
-        )
-    } else {
-        slog.Info("[API] openadb 执行成功", "output", string(output))
-    }
+	// 即使 err != nil，也不直接认为失败，只记录日志
+	if err != nil {
+		slog.Warn("[API] openadb 执行返回非 0，但忽略错误",
+			"err", err.Error(),
+			"output", string(output),
+		)
+	} else {
+		slog.Info("[API] openadb 执行成功", "output", string(output))
+	}
 
-    // 返回前端统一成功
-    c.JSON(http.StatusOK, gin.H{
-        "code":    0,
-        "success": true,
-        "msg":     "ADB 命令已触发（注意：部分报错可忽略）",
-        "output":  string(output),
-    })
+	// 返回前端统一成功
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"success": true,
+		"msg":     "ADB 命令已触发（注意：部分报错可忽略）",
+		"output":  string(output),
+	})
 }
 
-func init() {
+func initApplication() {
 	config.InitConfig()
 	model.InitDatabase()
 	service.InitSessionClean()
@@ -479,6 +481,8 @@ func init() {
 }
 
 func main() {
+	service.MaybeExecShellHelper()
+	initApplication()
 
 	gin.SetMode(gin.ReleaseMode)
 	var engine = gin.Default()

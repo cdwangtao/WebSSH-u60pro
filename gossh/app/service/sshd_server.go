@@ -152,8 +152,15 @@ func (s *Server) handleRequests(connection ssh.Channel, requests <-chan *ssh.Req
 				}
 			}
 		case "pty-req":
-			termLen := req.Payload[3]
-			resizes <- req.Payload[termLen+4:]
+			term, resizePayload, ok := parsePtyReq(req.Payload)
+			if !ok {
+				req.Reply(false, nil)
+				continue
+			}
+			if term != "" {
+				env = appendEnv(env, "TERM="+term)
+			}
+			resizes <- resizePayload
 			req.Reply(true, nil)
 		case "window-change":
 			resizes <- req.Payload
@@ -220,7 +227,7 @@ func (s *Server) attachShell(connection ssh.Channel, env []string, resizes <-cha
 		}
 	}()
 
-	shell := exec.Command(s.cli.Shell)
+	shell := newShellCommand(s.cli.Shell)
 	dir, err := os.UserHomeDir()
 	if err == nil {
 		shell.Dir = dir
@@ -238,7 +245,17 @@ func (s *Server) attachShell(connection ssh.Channel, env []string, resizes <-cha
 		slog.Info("Session closed")
 	}
 
-	shellPty, err := pty.Start(shell)
+	var initialSize *pty.Winsize
+	select {
+	case payload := <-resizes:
+		if len(payload) >= 8 {
+			w, h := parseDims(payload)
+			initialSize = &pty.Winsize{Rows: uint16(h), Cols: uint16(w)}
+		}
+	default:
+	}
+
+	shellPty, err := pty.StartWithSize(shell, initialSize)
 	if err != nil {
 		closeFunc()
 		return fmt.Errorf("could not start pty (%s)\n", err)
@@ -381,6 +398,19 @@ func parseDims(b []byte) (uint32, uint32) {
 	w := binary.BigEndian.Uint32(b)
 	h := binary.BigEndian.Uint32(b[4:])
 	return w, h
+}
+
+func parsePtyReq(b []byte) (string, []byte, bool) {
+	if len(b) < 4 {
+		return "", nil, false
+	}
+	termLen64 := uint64(binary.BigEndian.Uint32(b[:4]))
+	if termLen64 > uint64(len(b)-12) {
+		return "", nil, false
+	}
+	termLen := int(termLen64)
+	resizeOffset := 4 + termLen
+	return string(b[4:resizeOffset]), b[resizeOffset:], true
 }
 
 // SetWindowSize sets the size of the given pty.
