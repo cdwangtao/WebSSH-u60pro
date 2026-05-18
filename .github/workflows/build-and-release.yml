@@ -75,11 +75,13 @@ jobs:
           cd gossh
           upx --best --lzma webssh_${VERSION} || true
 
-      # 9. 生成 version 文件（推荐）
+      # 9. 生成 version 文件
       - name: Generate version file
         run: |
+          SHA256=$(sha256sum gossh/webssh_${VERSION} | awk '{print $1}')
+          echo "{\"version\":\"${VERSION}\",\"sha256\":\"${SHA256}\"}" > version.json
           echo "${VERSION}" > version.txt
-
+      
       # 10. 创建 Release（直接上传原始文件）
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -91,5 +93,6 @@ jobs:
           files: |
             gossh/webssh_${{ steps.version.outputs.version }}
             version.txt
+            version.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
