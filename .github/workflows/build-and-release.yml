@@ -80,10 +80,7 @@ jobs:
         run: |
           cd gossh
           SHA256=$(sha256sum webssh_${VERSION} | awk '{print $1}')
-          cat > version.json <<EOF
-{"version":"${VERSION}","sha256":"${SHA256}"}
-EOF
-          echo "${VERSION}" > version.json
+          echo "{\"version\":\"${VERSION}\",\"sha256\":\"${SHA256}\"}" > version.json
           echo "${VERSION}" > version.txt
       
       # 10. 创建 Release（直接上传原始文件）
