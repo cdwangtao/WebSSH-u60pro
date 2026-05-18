@@ -78,8 +78,7 @@ jobs:
       # 9. 生成 version 文件
       - name: Generate version file
         run: |
-          cd gossh
-          SHA256=$(sha256sum webssh_${VERSION} | awk '{print $1}')
+          SHA256=$(sha256sum gossh\webssh_${VERSION} | awk '{print $1}')
           echo "{\"version\":\"${VERSION}\",\"sha256\":\"${SHA256}\"}" > version.json
           echo "${VERSION}" > version.txt
       
