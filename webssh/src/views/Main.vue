@@ -2861,7 +2861,7 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translateY(var(--theme-hover-y, -2px));
   box-shadow: 0 6px 16px rgba(66, 153, 225, 0.4);
   background: var(--theme-btn-active-color, #409eff);
 }
@@ -2873,7 +2873,7 @@ onUnmounted(() => {
 }
 
 .btn-danger:hover:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translateY(var(--theme-hover-y, -2px));
   box-shadow: 0 6px 16px rgba(229, 62, 62, 0.4);
 }
 
@@ -2968,7 +2968,7 @@ onUnmounted(() => {
 }
 
 .card:hover {
-  transform: translateY(-4px);
+  transform: translateY(var(--theme-hover-y, -4px));
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
@@ -3040,7 +3040,7 @@ onUnmounted(() => {
 }
 
 .health-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(var(--theme-hover-y, -3px));
   box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 

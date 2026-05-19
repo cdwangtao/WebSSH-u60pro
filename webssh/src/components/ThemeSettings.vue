@@ -71,6 +71,11 @@
         <el-switch v-model="themeStore.overlayEnabled" active-text="开" inactive-text="关" />
       </div>
 
+      <div class="setting-item switch-row">
+        <span class="setting-label">首页悬浮动画</span>
+        <el-switch v-model="themeStore.hoverAnimationEnabled" active-text="开" inactive-text="关" />
+      </div>
+
       <el-divider />
 
       <div class="setting-item switch-row">
