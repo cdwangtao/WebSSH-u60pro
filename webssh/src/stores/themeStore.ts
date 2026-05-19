@@ -12,6 +12,7 @@ export interface ThemeState {
   overlayEnabled: boolean
   backgroundEnabled: boolean
   backgroundUrl: string
+  hoverAnimationEnabled: boolean
 }
 
 function hsvToRgb(h: number, s: number, v: number): { r: number; g: number; b: number } {
@@ -49,6 +50,7 @@ export const useThemeStore = defineStore(
     const overlayEnabled = ref(true)
     const backgroundEnabled = ref(false)
     const backgroundUrl = ref("")
+    const hoverAnimationEnabled = ref(true)
 
     function getGrayscaleText(): string {
       const gray = Math.round((textColorValue.value / 100) * 255)
@@ -113,6 +115,8 @@ export const useThemeStore = defineStore(
         overlayEnabled.value ? color : 'transparent'
       )
 
+      root.style.setProperty('--theme-hover-y', hoverAnimationEnabled.value ? '' : '0px')
+
       // 统一通过 CSS 变量管理主题背景色：把当前主题色的深色版写入 --dark-bg-color，
       // 让 body / html 的背景跟随主题切换，避免在 JS 中直接覆盖样式造成冲突
       const darkL = Math.max(Math.min(l * 0.45, 18), 6)
@@ -134,6 +138,7 @@ export const useThemeStore = defineStore(
           overlayEnabled: overlayEnabled.value,
           backgroundEnabled: backgroundEnabled.value,
           backgroundUrl: backgroundUrl.value,
+          hoverAnimationEnabled: hoverAnimationEnabled.value,
         }
         axios.post('/api/theme', data).catch(() => {})
       }, 500)
@@ -153,6 +158,7 @@ export const useThemeStore = defineStore(
           overlayEnabled.value = d.overlayEnabled ?? true
           backgroundEnabled.value = d.backgroundEnabled ?? false
           backgroundUrl.value = d.backgroundUrl ?? ""
+          hoverAnimationEnabled.value = d.hoverAnimationEnabled ?? true
           applyTheme()
         }
       } catch {
@@ -175,18 +181,19 @@ export const useThemeStore = defineStore(
       overlayEnabled.value = true
       backgroundEnabled.value = false
       backgroundUrl.value = ""
+      hoverAnimationEnabled.value = true
       applyTheme()
       saveToServer()
     }
 
-    watch([hue, saturation, brightness, opacity, textColorValue, blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl], () => {
+    watch([hue, saturation, brightness, opacity, textColorValue, blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled], () => {
       applyTheme()
       saveToServer()
     })
 
     return {
       hue, saturation, brightness, opacity, textColorValue,
-      blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl,
+      blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled,
       applyTheme, initTheme, resetTheme, getGrayscaleText, saveToServer, loadFromServer
     }
   }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -143,6 +144,87 @@ func selectUpdateAsset(release *GithubRelease) (*GithubAsset, error) {
 
 	return nil, fmt.Errorf("没有找到可用的 webssh 二进制资产")
 }
+
+const VersionJSONURL = "https://github.com/cdwangtao/WebSSH-u60pro/releases/latest/download/version.json"
+
+type VersionJSONInfo struct {
+	Version string `json:"version"`
+	SHA256  string `json:"sha256"`
+}
+
+func fetchExpectedSHA256(proxy string) (string, error) {
+	targetURL := VersionJSONURL
+	if proxy != "" {
+		trimmed := strings.TrimPrefix(VersionJSONURL, "https://")
+		p := proxy
+		if !strings.HasSuffix(p, "/") {
+			p += "/"
+		}
+		targetURL = p + trimmed
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "WebSSH-u60pro-Updater")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	var info VersionJSONInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return "", fmt.Errorf("解析 version.json 失败: %v", err)
+	}
+
+	if info.SHA256 == "" {
+		return "", fmt.Errorf("version.json 中 sha256 为空")
+	}
+
+	return strings.ToLower(info.SHA256), nil
+}
+
+func computeFileSHA256(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+func verifyFileSHA256(filePath string, proxy string) error {
+	expected, err := fetchExpectedSHA256(proxy)
+	if err != nil {
+		return fmt.Errorf("获取校验值失败: %v", err)
+	}
+
+	actual, err := computeFileSHA256(filePath)
+	if err != nil {
+		return fmt.Errorf("计算文件 SHA256 失败: %v", err)
+	}
+
+	if expected != actual {
+		return fmt.Errorf("SHA256 校验失败: 期望 %s, 实际 %s", expected, actual)
+	}
+
+	return nil
+}
+
 func UpdateVersionHandler(c *gin.Context) {
 	release, err := getLatestGithubRelease()
 	if err != nil {
@@ -378,6 +460,14 @@ func UpdateDownloadHandler(c *gin.Context) {
 		logFile := filepath.Join(os.TempDir(), "webssh_update.log")
 
 		if err := downloadFileWithProxy(asset.BrowserDownloadURL, tmpNewBin, req.Proxy); err != nil {
+			return
+		}
+
+		currentDownloadProgress.Message = "正在校验文件..."
+		if err := verifyFileSHA256(tmpNewBin, req.Proxy); err != nil {
+			currentDownloadProgress.Status = "failed"
+			currentDownloadProgress.Message = err.Error()
+			os.Remove(tmpNewBin)
 			return
 		}
 
@@ -723,6 +813,15 @@ func UpdateRunHandler(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"code": 1,
 			"msg":  "下载新版本失败: " + err.Error(),
+		})
+		return
+	}
+
+	if err := verifyFileSHA256(tmpNewBin, ""); err != nil {
+		os.Remove(tmpNewBin)
+		c.JSON(http.StatusOK, gin.H{
+			"code": 1,
+			"msg":  err.Error(),
 		})
 		return
 	}
