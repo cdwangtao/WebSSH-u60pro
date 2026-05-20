@@ -79,11 +79,10 @@ jobs:
       - name: Generate version file
         run: |
           FILE_PATH="gossh/webssh_${VERSION}"
-          SHA256=$(sha256sum gossh/webssh_${VERSION} | awk '{print $1}')
           SHA256=$(sha256sum ${FILE_PATH} | awk '{print $1}')
           SIZE=$(stat -c%s ${FILE_PATH})
           DOWNLOAD_URL="https://github.com/cdwangtao/WebSSH-u60pro/releases/download/${VERSION}/webssh_${VERSION}"
-          echo "{\"version\":\"${VERSION}\",\"sha256\":\"${SHA256}\",\"size\":${SIZE},\"downloadUrl\":\"${DOWNLOAD_URL}\" > version.json
+          echo "{\"version\":\"${VERSION}\",\"sha256\":\"${SHA256}\",\"size\":${SIZE},\"downloadUrl\":\"${DOWNLOAD_URL}\"}" > version.json
           echo "${VERSION}" > version.txt
       
       # 10. 创建 Release（直接上传原始文件）
