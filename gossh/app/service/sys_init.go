@@ -34,10 +34,12 @@ func SetRunConf(c *gin.Context) {
 	c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": config.DefaultConfig})
 }
 
-var themeFilePath = path.Join(config.WorkDir, "Theme.json")
+func getThemeFilePath() string {
+	return path.Join(config.WorkDir, "Theme.json")
+}
 
 func GetTheme(c *gin.Context) {
-	data, err := os.ReadFile(themeFilePath)
+	data, err := os.ReadFile(getThemeFilePath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": nil})
@@ -65,7 +67,7 @@ func SetTheme(c *gin.Context) {
 		c.JSON(200, gin.H{"code": 1, "msg": "序列化主题失败: " + err.Error()})
 		return
 	}
-	if err := os.WriteFile(themeFilePath, data, 0644); err != nil {
+	if err := os.WriteFile(getThemeFilePath(), data, 0644); err != nil {
 		c.JSON(200, gin.H{"code": 1, "msg": "保存主题文件失败: " + err.Error()})
 		return
 	}
