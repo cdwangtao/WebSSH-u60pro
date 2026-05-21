@@ -76,6 +76,11 @@
         <el-switch v-model="themeStore.hoverAnimationEnabled" active-text="开" inactive-text="关" />
       </div>
 
+      <div class="setting-item switch-row">
+        <span class="setting-label">信号表格横向滚动</span>
+        <el-switch v-model="themeStore.tableScrollEnabled" active-text="开" inactive-text="关" />
+      </div>
+
       <el-divider />
 
       <div class="setting-item switch-row">

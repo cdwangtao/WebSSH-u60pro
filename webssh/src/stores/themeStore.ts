@@ -13,6 +13,7 @@ export interface ThemeState {
   backgroundEnabled: boolean
   backgroundUrl: string
   hoverAnimationEnabled: boolean
+  tableScrollEnabled: boolean
 }
 
 function hsvToRgb(h: number, s: number, v: number): { r: number; g: number; b: number } {
@@ -51,6 +52,7 @@ export const useThemeStore = defineStore(
     const backgroundEnabled = ref(false)
     const backgroundUrl = ref("")
     const hoverAnimationEnabled = ref(true)
+    const tableScrollEnabled = ref(false)
 
     function getGrayscaleText(): string {
       const gray = Math.round((textColorValue.value / 100) * 255)
@@ -139,6 +141,7 @@ export const useThemeStore = defineStore(
           backgroundEnabled: backgroundEnabled.value,
           backgroundUrl: backgroundUrl.value,
           hoverAnimationEnabled: hoverAnimationEnabled.value,
+          tableScrollEnabled: tableScrollEnabled.value,
         }
         axios.post('/api/theme', data).catch(() => {})
       }, 500)
@@ -159,6 +162,7 @@ export const useThemeStore = defineStore(
           backgroundEnabled.value = d.backgroundEnabled ?? false
           backgroundUrl.value = d.backgroundUrl ?? ""
           hoverAnimationEnabled.value = d.hoverAnimationEnabled ?? true
+          tableScrollEnabled.value = d.tableScrollEnabled ?? false
           applyTheme()
         }
       } catch {
@@ -182,18 +186,19 @@ export const useThemeStore = defineStore(
       backgroundEnabled.value = false
       backgroundUrl.value = ""
       hoverAnimationEnabled.value = true
+      tableScrollEnabled.value = false
       applyTheme()
       saveToServer()
     }
 
-    watch([hue, saturation, brightness, opacity, textColorValue, blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled], () => {
+    watch([hue, saturation, brightness, opacity, textColorValue, blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled, tableScrollEnabled], () => {
       applyTheme()
       saveToServer()
     })
 
     return {
       hue, saturation, brightness, opacity, textColorValue,
-      blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled,
+      blurEnabled, overlayEnabled, backgroundEnabled, backgroundUrl, hoverAnimationEnabled, tableScrollEnabled,
       applyTheme, initTheme, resetTheme, getGrayscaleText, saveToServer, loadFromServer
     }
   }
