@@ -1443,7 +1443,6 @@ interface USBStatus {
   typec_cc: string,
   usb2rj45: number,
 }
-
 const usbStatus = ref<USBStatus>({} as USBStatus);
 
 // 连接状态
@@ -2400,6 +2399,17 @@ async function fetchAllData() {
   } catch (e: any) {
     error.value = e?.message || '请求失败'
     console.error('数据获取失败:', e)
+    data.value = null
+    lanData.value = {} as NetworkInterface
+    wanData.value = {} as NetworkInterface
+    wan6Data.value = {} as NetworkInterface
+    trafficData.value = {} as TrafficData
+    cpuTemp.value = {} as CpuTemp
+    simInfo.value = {} as SimInfo
+    simInfo2.value = {} as SimInfo2
+    wifiStatus.value = {} as WifiStatus
+    sysVersion.value = {} as SysVersion
+    usbStatus.value = {} as USBStatus
   } finally {
     loading.value = false
   }
@@ -2424,6 +2434,9 @@ async function fetchAllData2() {
   } catch (e: any) {
     error.value = e?.message || '请求失败'
     console.error('数据获取失败:', e)
+    deviceInfo.value = {} as DeviceInfo
+    wwanInfo.value = {} as WwanInfo
+    lanUserList.value = {} as LanUserList
   } finally {
     loading.value = false
   }
