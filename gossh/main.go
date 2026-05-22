@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -275,20 +276,27 @@ var PROXIES = []string{
 
 // DownloadProgress 下载进度
 type DownloadProgress struct {
-	Downloaded int64  `json:"downloaded"`
-	Total      int64  `json:"total"`
-	Percent    int    `json:"percent"`
-	Status     string `json:"status"` // idle | downloading | success | failed | restarting
-	Message    string `json:"message"`
-	Proxy      string `json:"proxy"`
+	Downloaded int64   `json:"downloaded"`
+	Total      int64   `json:"total"`
+	Percent    int     `json:"percent"`
+	Speed      float64 `json:"speed"`  // bytes per second
+	Status     string  `json:"status"` // idle | downloading | success | failed | restarting | cancelled
+	Message    string  `json:"message"`
+	Proxy      string  `json:"proxy"`
+	FileName   string  `json:"file_name"`
+	SHA256     string  `json:"sha256"`
 }
 
 var currentDownloadProgress = DownloadProgress{Status: "idle"}
+var downloadCancel context.CancelFunc
 
 // ProgressWriter 边写边更新全局进度
 type ProgressWriter struct {
 	Total      int64
 	Downloaded int64
+	StartTime  time.Time
+	LastTime   time.Time
+	LastBytes  int64
 }
 
 func (pw *ProgressWriter) Write(p []byte) (int, error) {
@@ -299,6 +307,17 @@ func (pw *ProgressWriter) Write(p []byte) (int, error) {
 		currentDownloadProgress.Total = pw.Total
 		currentDownloadProgress.Percent = int(float64(pw.Downloaded) / float64(pw.Total) * 100)
 	}
+
+	// 计算实时速度（每秒更新）
+	now := time.Time{}
+	elapsed := now.Sub(pw.LastTime).Seconds()
+	if elapsed >= 0.5 {
+		bytesDiff := pw.Downloaded - pw.LastBytes
+		currentDownloadProgress.Speed = float64(bytesDiff) / elapsed
+		pw.LastTime = now
+		pw.LastBytes = pw.Downloaded
+	}
+
 	return n, nil
 }
 
@@ -314,9 +333,13 @@ func downloadFileWithProxy(url string, savePath string, proxy string) error {
 		targetURL = p + trimmed
 	}
 
-	client := &http.Client{Timeout: 5 * time.Minute}
+	ctx, cancel := context.WithCancel(context.Background())
+	downloadCancel = cancel
+	defer cancel()
 
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	client := &http.Client{Timeout: 1 * time.Minute}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		currentDownloadProgress.Status = "failed"
 		currentDownloadProgress.Message = "构建请求失败: " + err.Error()
@@ -326,6 +349,11 @@ func downloadFileWithProxy(url string, savePath string, proxy string) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			currentDownloadProgress.Status = "cancelled"
+			currentDownloadProgress.Message = "下载已取消"
+			return fmt.Errorf("下载已取消")
+		}
 		currentDownloadProgress.Status = "failed"
 		currentDownloadProgress.Message = "请求失败: " + err.Error()
 		return err
@@ -338,6 +366,21 @@ func downloadFileWithProxy(url string, savePath string, proxy string) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
+	// 提取文件名
+	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			if name, ok := params["filename"]; ok {
+				currentDownloadProgress.FileName = name
+			}
+		}
+	}
+	if currentDownloadProgress.FileName == "" {
+		parts := strings.Split(targetURL, "/")
+		if len(parts) > 0 {
+			currentDownloadProgress.FileName = parts[len(parts)-1]
+		}
+	}
+
 	out, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		currentDownloadProgress.Status = "failed"
@@ -346,9 +389,19 @@ func downloadFileWithProxy(url string, savePath string, proxy string) error {
 	}
 	defer out.Close()
 
-	pw := &ProgressWriter{Total: resp.ContentLength}
+	pw := &ProgressWriter{
+		Total:     resp.ContentLength,
+		StartTime: time.Now(),
+		LastTime:  time.Now(),
+	}
 	currentDownloadProgress.Total = resp.ContentLength
 	if _, err := io.Copy(io.MultiWriter(out, pw), resp.Body); err != nil {
+		if ctx.Err() == context.Canceled {
+			currentDownloadProgress.Status = "cancelled"
+			currentDownloadProgress.Message = "下载已取消"
+			os.Remove(savePath)
+			return fmt.Errorf("下载已取消")
+		}
 		currentDownloadProgress.Status = "failed"
 		currentDownloadProgress.Message = "下载失败: " + err.Error()
 		return err
@@ -365,6 +418,16 @@ func downloadFileWithProxy(url string, savePath string, proxy string) error {
 	currentDownloadProgress.Percent = 100
 	currentDownloadProgress.Message = "下载完成"
 	return nil
+}
+
+// UpdateCancelHandler 取消下载
+func UpdateCancelHandler(c *gin.Context) {
+	if downloadCancel != nil && currentDownloadProgress.Status == "downloading" {
+		downloadCancel()
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "已发送取消请求"})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "当前没有正在进行的下载"})
+	}
 }
 
 // UpdateProxiesHandler 获取代理列表
@@ -470,6 +533,10 @@ func UpdateDownloadHandler(c *gin.Context) {
 			os.Remove(tmpNewBin)
 			return
 		}
+
+		// 计算并显示SHA256
+		sha256Value, _ := computeFileSHA256(tmpNewBin)
+		currentDownloadProgress.SHA256 = sha256Value
 
 		if err := os.Chmod(tmpNewBin, 0755); err != nil {
 			currentDownloadProgress.Status = "failed"
@@ -1042,6 +1109,7 @@ func main() {
 		auth.GET("/api/update/proxies", UpdateProxiesHandler)
 		auth.GET("/api/update/progress", UpdateProgressHandler)
 		auth.POST("/api/update/download", UpdateDownloadHandler)
+		auth.POST("/api/update/cancel", UpdateCancelHandler)
 		auth.POST("/api/update/test-speed", UpdateTestSpeedHandler)
 	}
 	{

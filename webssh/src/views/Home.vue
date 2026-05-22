@@ -236,14 +236,23 @@
               center
             >
               <div v-if="updateVersionInfo">
-                <el-descriptions :column="1" border>
-                  <el-descriptions-item label="当前版本">{{ updateVersionInfo.current_version }}</el-descriptions-item>
-                  <el-descriptions-item label="最新版本">{{ updateVersionInfo.latest_version }}</el-descriptions-item>
-                  <el-descriptions-item label="更新文件">{{ updateVersionInfo.asset_name || "-" }}</el-descriptions-item>
-                  <el-descriptions-item label="文件大小">{{ (updateVersionInfo.asset_size / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
-                </el-descriptions>
+                <div class="version-info-card">
+                  <div class="version-row">
+                    <span class="version-label">当前版本</span>
+                    <span class="version-value">{{ updateVersionInfo.current_version }}</span>
+                  </div>
+                  <div class="version-arrow">→</div>
+                  <div class="version-row">
+                    <span class="version-label">最新版本</span>
+                    <span class="version-value highlight">{{ updateVersionInfo.latest_version }}</span>
+                  </div>
+                </div>
+                <div class="update-file-info">
+                  <span class="file-name">{{ updateVersionInfo.asset_name || "-" }}</span>
+                  <span class="file-size">{{ (updateVersionInfo.asset_size / 1024 / 1024).toFixed(2) }} MB</span>
+                </div>
 
-                <el-form style="margin-top: 20px;">
+                <el-form style="margin-top: 16px;">
                   <el-form-item>
                     <el-checkbox v-model="useCustomProxy">自定义</el-checkbox>
                     <span v-if="isTestingSpeed && !useCustomProxy" style="margin-left: 10px; color: #409eff; font-size: 12px;">
@@ -329,46 +338,83 @@
             <!-- 更新进度对话框 -->
             <el-dialog
               v-model="data.update_progress_dialog_visible"
-              title="更新进度"
-              custom-class="modern-dialog"
-              style="max-width: 500px;"
+              title="系统更新"
+              custom-class="modern-dialog update-progress-dialog"
+              style="max-width: 520px;"
               width="95%"
               center
               :close-on-click-modal="false"
               :close-on-press-escape="false"
             >
-              <div>
-                <el-descriptions :column="1" border>
-                  <el-descriptions-item label="状态">
-                    <el-tag v-if="updateProgress.status === 'downloading'" type="primary">下载中</el-tag>
-                    <el-tag v-else-if="updateProgress.status === 'success'" type="success">下载完成</el-tag>
-                    <el-tag v-else-if="updateProgress.status === 'failed'" type="danger">下载失败</el-tag>
-                    <el-tag v-else-if="updateProgress.status === 'restarting'" type="warning">重启中</el-tag>
-                    <el-tag v-else type="info">{{ updateProgress.status }}</el-tag>
-                  </el-descriptions-item>
-                  <el-descriptions-item label="代理">{{ updateProgress.proxy || "直连" }}</el-descriptions-item>
-                  <el-descriptions-item label="进度">{{ updateProgress.percent }}%</el-descriptions-item>
-                  <el-descriptions-item label="已下载">{{ (updateProgress.downloaded / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
-                  <el-descriptions-item label="总大小">{{ (updateProgress.total / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
-                </el-descriptions>
+              <div class="update-progress-content">
+                <!-- 进度条区域 -->
+                <div class="progress-bar-section">
+                  <div class="progress-bar-wrapper">
+                    <div class="progress-bar-track">
+                      <div
+                        class="progress-bar-fill"
+                        :class="updateProgress.status"
+                        :style="{ width: updateProgress.percent + '%' }"
+                      >
+                        <div class="progress-bar-glow"></div>
+                      </div>
+                    </div>
+                    <div class="progress-percent-text" :class="updateProgress.status">
+                      {{ updateProgress.percent }}%
+                    </div>
+                  </div>
+                  <div class="progress-size-info">
+                    {{ formatBytes(updateProgress.downloaded) }} / {{ formatBytes(updateProgress.total) }}
+                  </div>
+                </div>
 
-                <div style="margin-top: 20px;">
-                  <el-progress
-                    :percentage="updateProgress.percent"
-                    :status="updateProgress.status === 'success' ? 'success' : (updateProgress.status === 'failed' ? 'exception' : undefined)"
-                  />
-                  <div style="margin-top: 10px; text-align: center; color: #666;">
-                    {{ updateProgress.message }}
+                <!-- 状态消息 -->
+                <div class="progress-status-message" :class="updateProgress.status">
+                  <el-icon v-if="updateProgress.status === 'downloading'" class="is-loading"><Loading /></el-icon>
+                  <el-icon v-else-if="updateProgress.status === 'success'"><CircleCheck /></el-icon>
+                  <el-icon v-else-if="updateProgress.status === 'failed'"><CircleClose /></el-icon>
+                  <el-icon v-else-if="updateProgress.status === 'cancelled'"><WarningFilled /></el-icon>
+                  <el-icon v-else-if="updateProgress.status === 'restarting'" class="is-loading"><Loading /></el-icon>
+                  <span>{{ updateProgress.message || '准备中...' }}</span>
+                </div>
+
+                <!-- 详细信息表格 -->
+                <div class="progress-info-table">
+                  <div class="info-table-row">
+                    <span class="info-table-label">下载代理</span>
+                    <span class="info-table-value">{{ updateProgress.proxy || "直连" }}</span>
+                  </div>
+                  <div class="info-table-row">
+                    <span class="info-table-label">下载速度</span>
+                    <span class="info-table-value speed">
+                      {{ updateProgress.status === 'downloading' ? formatSpeed(updateProgress.speed) : '--' }}
+                    </span>
+                  </div>
+                  <div class="info-table-row" v-if="updateProgress.file_name">
+                    <span class="info-table-label">文件名称</span>
+                    <span class="info-table-value filename">{{ updateProgress.file_name }}</span>
+                  </div>
+                  <div class="info-table-row" v-if="updateProgress.sha256">
+                    <span class="info-table-label">SHA256</span>
+                    <span class="info-table-value sha256">{{ updateProgress.sha256 }}</span>
                   </div>
                 </div>
               </div>
               <template #footer>
                 <div class="dialog-footer">
                   <el-button
-                    @click="closeProgressDialog"
-                    :disabled="updateProgress.status === 'downloading'"
+                    v-if="updateProgress.status === 'downloading'"
+                    type="danger"
+                    @click="cancelDownload"
                   >
-                    {{ updateProgress.status === 'downloading' ? '下载中...' : '关闭' }}
+                    取消下载
+                  </el-button>
+                  <el-button
+                    v-else
+                    @click="closeProgressDialog"
+                    :type="updateProgress.status === 'success' ? 'primary' : 'default'"
+                  >
+                    {{ updateProgress.status === 'success' ? '完成' : '关闭' }}
                   </el-button>
                 </div>
               </template>
@@ -720,8 +766,12 @@ import {
   ArrowUp,
   Avatar,
   Bottom,
+  CircleCheck,
+  CircleClose,
   CirclePlus,
+  Connection,
   CopyDocument,
+  Document,
   Eleme,
   Files,
   FolderOpened,
@@ -732,7 +782,8 @@ import {
   Star,
   SwitchButton,
   Tools,
-  Upload
+  Upload,
+  WarningFilled
 } from "@element-plus/icons-vue";
 import { AttachAddon } from "@xterm/addon-attach";
 import { FitAddon } from "@xterm/addon-fit";
@@ -937,9 +988,12 @@ const updateProgress = ref({
   downloaded: 0,
   total: 0,
   percent: 0,
+  speed: 0,
   status: "idle",
   message: "",
   proxy: "",
+  file_name: "",
+  sha256: "",
 });
 const updateVersionInfo = ref<any>(null);
 let progressTimer: any = null;
@@ -1198,6 +1252,34 @@ function closeProgressDialog() {
     progressTimer = null;
   }
   data.update_progress_dialog_visible = false;
+}
+
+// 取消下载
+async function cancelDownload() {
+  try {
+    await axios.post("/api/update/cancel");
+    ElMessage.info("已发送取消请求");
+  } catch (err) {
+    console.error("取消下载失败", err);
+  }
+}
+
+// 格式化字节
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+// 格式化速度
+function formatSpeed(bytesPerSecond: number): string {
+  if (!bytesPerSecond || bytesPerSecond === 0) return "0 B/s";
+  const k = 1024;
+  const sizes = ["B/s", "KB/s", "MB/s", "GB/s"];
+  const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
+  return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
 // 执行更新（旧入口，保留兼容）
@@ -2675,5 +2757,291 @@ const mainBgStyle = computed(() => {
 /* 终端自适应 */
 :deep(.el-tabs__header) {
   margin: 0 !important;
+}
+
+/* 更新界面样式 */
+.version-info-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(255, 255, 255, 0.9));
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.16);
+}
+
+.version-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.version-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.version-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.version-value.highlight {
+  color: #2563eb;
+}
+
+.version-arrow {
+  font-size: 24px;
+  color: #3b82f6;
+  font-weight: 300;
+}
+
+.update-file-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(248, 250, 252, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.12);
+}
+
+.update-file-info .file-name {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.update-file-info .file-size {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.update-progress-content {
+  padding: 8px 0;
+}
+
+/* 进度对话框样式 */
+.update-progress-dialog {
+  --progress-primary: #3b82f6;
+  --progress-success: #10b981;
+  --progress-danger: #ef4444;
+  --progress-warning: #f59e0b;
+  --progress-cancelled: #f59e0b;
+}
+
+/* 进度条区域 */
+.progress-bar-section {
+  margin-bottom: 20px;
+}
+
+.progress-bar-wrapper {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.progress-bar-track {
+  height: 24px;
+  background: #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-fill.downloading {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.progress-bar-fill.success {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.progress-bar-fill.failed {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.progress-bar-fill.cancelled {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.progress-bar-fill.restarting {
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.progress-bar-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-percent-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.progress-size-info {
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* 状态消息 */
+.progress-status-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.progress-status-message.downloading {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.progress-status-message.success {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.progress-status-message.failed {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.progress-status-message.cancelled {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.progress-status-message.restarting {
+  background: #f5f3ff;
+  color: #8b5cf6;
+}
+
+/* 详细信息表格 */
+.progress-info-table {
+  background: #f8fafc;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.info-table-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.info-table-row:last-child {
+  border-bottom: none;
+}
+
+.info-table-label {
+  width: 80px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.info-table-value {
+  flex: 1;
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.info-table-value.speed {
+  color: #3b82f6;
+}
+
+.info-table-value.filename {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.info-table-value.sha256 {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* 动画效果 */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+  .progress-bar-track {
+    height: 20px;
+  }
+
+  .progress-percent-text {
+    font-size: 12px;
+  }
+
+  .info-table-row {
+    padding: 10px 12px;
+  }
+
+  .info-table-label {
+    width: 70px;
+    font-size: 12px;
+  }
+
+  .info-table-value {
+    font-size: 12px;
+  }
 }
 </style>

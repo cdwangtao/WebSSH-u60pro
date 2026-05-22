@@ -268,81 +268,83 @@
           </div>
           <div class="card-content">
             <div class="signal-grid">
-              <table class="mytable" width="100%">
-                <tr>
-                  <td width="13%"></td>
-                  <td width="9%">PCI</td>
-                  <td width="11%">频段</td>
-                  <td width="16%">频点</td>
-                  <td width="11%">带宽</td>
-                  <td width="10%">RSRP</td>
-                  <td width="10%">RSRQ</td>
-                  <td width="10%">SINR</td>
-                  <td width="10%">RSSI</td>
-                </tr>
-                <tr>
-                  <td>PCC</td>
-                  <td>{{ d.nr5g_pci ?? '-' }}</td>
-                  <td>{{ d.nr5g_action_band?.toUpperCase() ?? '-' }}</td>
-                  <td>{{ d.nr5g_action_channel ?? '-' }}</td>
-                  <td>{{ d.nr5g_bandwidth ? d.nr5g_bandwidth + 'Mhz' : '-' }}</td>
-                  <td class="dbmstyle">{{ d.nr5g_rsrp }}</td>
-                  <td>{{ d.nr5g_rsrq }}</td>
-                  <td>{{ d.nr5g_snr }}</td>
-                  <td class="dbmstyle">{{ d.nr5g_rssi }}</td>
-                </tr>
-                <tr>
-                  <td>SCC0</td>
-                  <td>{{ formatNrca(d.nrca,'',0,1) }}</td>
-                  <td>{{ formatNrca(d.nrca,'N',0,3) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',0,4) }}</td>
-                  <td>
-                    {{
-                      formatNrca(d.nrca, '', 0, 5) != '-'
-                        ? formatNrca(d.nrca, '', 0, 5) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,7) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',0,8) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',0,9) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,10) }}</td>
-                </tr>
-                <tr>
-                  <td>SCC1</td>
-                  <td>{{ formatNrca(d.nrca,'',1,1) }}</td>
-                  <td>{{ formatNrca(d.nrca,'N',1,3) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',1,4) }}</td>
-                  <td>
-                    {{
-                      formatNrca(d.nrca, '', 1, 5) != '-'
-                        ? formatNrca(d.nrca, '', 1, 5) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,7) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',1,8) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',1,9) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,10) }}</td>
-                </tr>
-                <tr>
-                  <td>SCC2</td>
-                  <td>{{ formatNrca(d.nrca,'',2,1) }}</td>
-                  <td>{{ formatNrca(d.nrca,'N',2,3) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',2,4) }}</td>
-                  <td>
-                    {{
-                      formatNrca(d.nrca, '', 2, 5) != '-'
-                        ? formatNrca(d.nrca, '', 2, 5) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,7) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',2,8) }}</td>
-                  <td>{{ formatNrca(d.nrca,'',2,9) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,10) }}</td>
-                </tr>
-              </table>
+              <div :class="{ 'table-wrapper': themeStore.tableScrollEnabled }">
+                <table class="mytable" width="100%">
+                  <tr>
+                    <td width="13%"></td>
+                    <td width="9%">PCI</td>
+                    <td width="11%">频段</td>
+                    <td width="16%">频点</td>
+                    <td width="11%">带宽</td>
+                    <td width="10%">RSRP</td>
+                    <td width="10%">RSRQ</td>
+                    <td width="10%">SINR</td>
+                    <td width="10%">RSSI</td>
+                  </tr>
+                  <tr>
+                    <td>PCC</td>
+                    <td>{{ d.nr5g_pci ?? '-' }}</td>
+                    <td>{{ d.nr5g_action_band?.toUpperCase() ?? '-' }}</td>
+                    <td>{{ d.nr5g_action_channel ?? '-' }}</td>
+                    <td>{{ d.nr5g_bandwidth ? d.nr5g_bandwidth + 'Mhz' : '-' }}</td>
+                    <td class="dbmstyle">{{ d.nr5g_rsrp }}</td>
+                    <td>{{ d.nr5g_rsrq }}</td>
+                    <td>{{ d.nr5g_snr }}</td>
+                    <td class="dbmstyle">{{ d.nr5g_rssi }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC0</td>
+                    <td>{{ formatNrca(d.nrca,'',0,1) }}</td>
+                    <td>{{ formatNrca(d.nrca,'N',0,3) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',0,4) }}</td>
+                    <td>
+                      {{
+                        formatNrca(d.nrca, '', 0, 5) != '-'
+                          ? formatNrca(d.nrca, '', 0, 5) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,7) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',0,8) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',0,9) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',0,10) }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC1</td>
+                    <td>{{ formatNrca(d.nrca,'',1,1) }}</td>
+                    <td>{{ formatNrca(d.nrca,'N',1,3) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',1,4) }}</td>
+                    <td>
+                      {{
+                        formatNrca(d.nrca, '', 1, 5) != '-'
+                          ? formatNrca(d.nrca, '', 1, 5) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,7) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',1,8) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',1,9) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',1,10) }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC2</td>
+                    <td>{{ formatNrca(d.nrca,'',2,1) }}</td>
+                    <td>{{ formatNrca(d.nrca,'N',2,3) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',2,4) }}</td>
+                    <td>
+                      {{
+                        formatNrca(d.nrca, '', 2, 5) != '-'
+                          ? formatNrca(d.nrca, '', 2, 5) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,7) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',2,8) }}</td>
+                    <td>{{ formatNrca(d.nrca,'',2,9) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.nrca,'',2,10) }}</td>
+                  </tr>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -519,100 +521,102 @@
           </div>
           <div class="card-content">
             <div class="signal-grid">
-              <table class="mytable" width="100%">
-                <tr>
-                  <td width="13%"></td>
-                  <td width="9%">PCI</td>
-                  <td width="11%">频段</td>
-                  <td width="16%">信道</td>
-                  <td width="11%">带宽</td>
-                  <td width="10%">RSRP</td>
-                  <td width="10%">RSRQ</td>
-                  <td width="10%">SINR</td>
-                  <td width="10%">RSSI</td>
-                </tr>
-                <tr>
-                  <td>PCC</td>
-                  <td>{{ d.lte_pci ?? '-' }}</td>
-                  <td>{{ formatNrca(d.lteca,'B',0,1) }}</td>
-                  <td>{{ d.wan_active_channel ?? '-' }}</td>
-                  <td>
-                    {{
-                      formatNrca(d.lteca, '', 0, 4) != '-'
-                        ? formatNrca(d.lteca, '', 0, 4) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ d.lte_rsrp }}</td>
-                  <td>{{ d.lte_rsrq }}</td>
-                  <td>{{ d.lte_snr }}</td>
-                  <td class="dbmstyle">{{ d.lte_rssi }}</td>
-                </tr>
-                <tr>
-                  <td>SCC0</td>
-                  <td>{{ formatNrca(d.lteca,'',1,0) }}</td>
-                  <td>{{ formatNrca(d.lteca,'B',1,1) }}</td>
-                  <td>{{ formatNrca(d.lteca,'',1,3) }}</td>
-                  <td>{{
-                      formatNrca(d.lteca, '', 1, 4) != '-'
-                        ? formatNrca(d.lteca, '', 1, 4) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,0) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',0,1) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',0,2) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,3) }}</td>
-                </tr>
-                <tr>
-                  <td>SCC1</td>
-                  <td>{{ formatNrca(d.lteca,'',2,0) }}</td>
-                  <td>{{ formatNrca(d.lteca,'B',2,1) }}</td>
-                  <td>{{ formatNrca(d.lteca,'',2,3) }}</td>
-                  <td>{{
-                      formatNrca(d.lteca, '', 2, 4) != '-'
-                        ? formatNrca(d.lteca, '', 2, 4) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,0) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',1,1) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',1,2) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,3) }}</td>
-                </tr>
-                <tr>
-                  <td>SCC2</td>
-                  <td>{{ formatNrca(d.lteca,'',3,0) }}</td>
-                  <td>{{ formatNrca(d.lteca,'B',3,1) }}</td>
-                  <td>{{ formatNrca(d.lteca,'',3,3) }}</td>
-                  <td>{{
-                      formatNrca(d.lteca, '', 3, 4) != '-'
-                        ? formatNrca(d.lteca, '', 3, 4) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,0) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',2,1) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',2,2) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,3) }}</td>
-                </tr>
-                <tr>
-                  <td>SCC3</td>
-                  <td>{{ formatNrca(d.lteca,'',4,0) }}</td>
-                  <td>{{ formatNrca(d.lteca,'B',4,1) }}</td>
-                  <td>{{ formatNrca(d.lteca,'',4,3) }}</td>
-                  <td>{{
-                      formatNrca(d.lteca, '', 4, 4) != '-'
-                        ? formatNrca(d.lteca, '', 4, 4) + 'Mhz'
-                        : '-'
-                    }}
-                  </td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,0) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',4,1) }}</td>
-                  <td>{{ formatNrca(d.ltecasig,'',4,2) }}</td>
-                  <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,3) }}</td>
-                </tr>
-              </table>
+              <div :class="{ 'table-wrapper': themeStore.tableScrollEnabled }">
+                <table class="mytable" width="100%">
+                  <tr>
+                    <td width="13%"></td>
+                    <td width="9%">PCI</td>
+                    <td width="11%">频段</td>
+                    <td width="16%">信道</td>
+                    <td width="11%">带宽</td>
+                    <td width="10%">RSRP</td>
+                    <td width="10%">RSRQ</td>
+                    <td width="10%">SINR</td>
+                    <td width="10%">RSSI</td>
+                  </tr>
+                  <tr>
+                    <td>PCC</td>
+                    <td>{{ d.lte_pci ?? '-' }}</td>
+                    <td>{{ formatNrca(d.lteca,'B',0,1) }}</td>
+                    <td>{{ d.wan_active_channel ?? '-' }}</td>
+                    <td>
+                      {{
+                        formatNrca(d.lteca, '', 0, 4) != '-'
+                          ? formatNrca(d.lteca, '', 0, 4) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ d.lte_rsrp }}</td>
+                    <td>{{ d.lte_rsrq }}</td>
+                    <td>{{ d.lte_snr }}</td>
+                    <td class="dbmstyle">{{ d.lte_rssi }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC0</td>
+                    <td>{{ formatNrca(d.lteca,'',1,0) }}</td>
+                    <td>{{ formatNrca(d.lteca,'B',1,1) }}</td>
+                    <td>{{ formatNrca(d.lteca,'',1,3) }}</td>
+                    <td>{{
+                        formatNrca(d.lteca, '', 1, 4) != '-'
+                          ? formatNrca(d.lteca, '', 1, 4) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,0) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',0,1) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',0,2) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',0,3) }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC1</td>
+                    <td>{{ formatNrca(d.lteca,'',2,0) }}</td>
+                    <td>{{ formatNrca(d.lteca,'B',2,1) }}</td>
+                    <td>{{ formatNrca(d.lteca,'',2,3) }}</td>
+                    <td>{{
+                        formatNrca(d.lteca, '', 2, 4) != '-'
+                          ? formatNrca(d.lteca, '', 2, 4) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,0) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',1,1) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',1,2) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',1,3) }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC2</td>
+                    <td>{{ formatNrca(d.lteca,'',3,0) }}</td>
+                    <td>{{ formatNrca(d.lteca,'B',3,1) }}</td>
+                    <td>{{ formatNrca(d.lteca,'',3,3) }}</td>
+                    <td>{{
+                        formatNrca(d.lteca, '', 3, 4) != '-'
+                          ? formatNrca(d.lteca, '', 3, 4) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,0) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',2,1) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',2,2) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',2,3) }}</td>
+                  </tr>
+                  <tr>
+                    <td>SCC3</td>
+                    <td>{{ formatNrca(d.lteca,'',4,0) }}</td>
+                    <td>{{ formatNrca(d.lteca,'B',4,1) }}</td>
+                    <td>{{ formatNrca(d.lteca,'',4,3) }}</td>
+                    <td>{{
+                        formatNrca(d.lteca, '', 4, 4) != '-'
+                          ? formatNrca(d.lteca, '', 4, 4) + 'Mhz'
+                          : '-'
+                      }}
+                    </td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,0) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',4,1) }}</td>
+                    <td>{{ formatNrca(d.ltecasig,'',4,2) }}</td>
+                    <td class="dbmstyle">{{ formatNrca(d.ltecasig,'',4,3) }}</td>
+                  </tr>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -1225,6 +1229,9 @@ import NetworkIcon from '@/assets/svgs/network.svg';
 import axios from 'axios';
 import { ElMessage, ElNotification } from 'element-plus';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useThemeStore } from '@/stores/themeStore';
+
+const themeStore = useThemeStore();
 
 // interface UbusResponse<T = any> {
 //   code: number;
@@ -1443,7 +1450,6 @@ interface USBStatus {
   typec_cc: string,
   usb2rj45: number,
 }
-
 const usbStatus = ref<USBStatus>({} as USBStatus);
 
 // 连接状态
@@ -2400,6 +2406,17 @@ async function fetchAllData() {
   } catch (e: any) {
     error.value = e?.message || '请求失败'
     console.error('数据获取失败:', e)
+    data.value = null
+    lanData.value = {} as NetworkInterface
+    wanData.value = {} as NetworkInterface
+    wan6Data.value = {} as NetworkInterface
+    trafficData.value = {} as TrafficData
+    cpuTemp.value = {} as CpuTemp
+    simInfo.value = {} as SimInfo
+    simInfo2.value = {} as SimInfo2
+    wifiStatus.value = {} as WifiStatus
+    sysVersion.value = {} as SysVersion
+    usbStatus.value = {} as USBStatus
   } finally {
     loading.value = false
   }
@@ -2424,6 +2441,9 @@ async function fetchAllData2() {
   } catch (e: any) {
     error.value = e?.message || '请求失败'
     console.error('数据获取失败:', e)
+    deviceInfo.value = {} as DeviceInfo
+    wwanInfo.value = {} as WwanInfo
+    lanUserList.value = {} as LanUserList
   } finally {
     loading.value = false
   }
